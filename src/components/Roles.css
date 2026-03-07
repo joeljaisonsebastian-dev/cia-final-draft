@@ -1,0 +1,126 @@
+.roles {
+    padding: 6rem 2rem;
+    background: relative;
+    overflow: hidden;
+}
+
+.roles-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 3rem;
+}
+
+.role-card {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 1.5rem;
+    padding: 3rem;
+    position: relative;
+    transition: transform 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.role-card:hover {
+    transform: translateY(-8px);
+}
+
+.teacher-role {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, rgba(30, 41, 59, 0.7) 100%);
+    border-top: 4px solid #6366f1;
+}
+
+.student-role {
+    background: linear-gradient(180deg, rgba(168, 85, 247, 0.05) 0%, rgba(30, 41, 59, 0.7) 100%);
+    border-top: 4px solid #a855f7;
+}
+
+.role-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.role-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.role-icon.teacher {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+}
+
+.role-icon.student {
+    background: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
+}
+
+.role-card h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.role-description {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+    line-height: 1.6;
+}
+
+.role-features {
+    list-style: none;
+    margin-bottom: 2.5rem;
+}
+
+.role-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    color: var(--text-main);
+    font-size: 1.05rem;
+}
+
+.check-icon {
+    color: #10b981;
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+}
+
+.btn-outline {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: transparent;
+}
+
+.teacher-btn {
+    border: 1px solid #6366f1;
+    color: #818cf8;
+}
+
+.teacher-btn:hover {
+    background: rgba(99, 102, 241, 0.1);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+}
+
+.student-btn {
+    border: 1px solid #a855f7;
+    color: #c084fc;
+}
+
+.student-btn:hover {
+    background: rgba(168, 85, 247, 0.1);
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.2);
+}
