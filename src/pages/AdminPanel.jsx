@@ -13,6 +13,7 @@ const AdminPanel = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(true);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const navigate = useNavigate();
 
     const token = localStorage.getItem('adminToken');
@@ -192,13 +193,25 @@ const AdminPanel = () => {
         navigate('/admin-login');
     };
 
+    const toggleMobileMenu = () => {
+        setMobileMenuOpen(!mobileMenuOpen);
+    };
+
     return (
         <div className="admin-layout">
+            {/* Mobile Overlay */}
+            {mobileMenuOpen && (
+                <div className="mobile-overlay" onClick={toggleMobileMenu}></div>
+            )}
+
             {/* Sidebar */}
-            <aside className="admin-sidebar">
+            <aside className={`admin-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
                     <Shield size={24} />
                     <h2>Admin <span>Panel</span></h2>
+                    <button className="close-menu-btn" onClick={toggleMobileMenu}>
+                        <X size={24} />
+                    </button>
                 </div>
 
                 <nav className="sidebar-nav">
@@ -219,7 +232,12 @@ const AdminPanel = () => {
             {/* Main Content */}
             <main className="admin-main">
                 <header className="admin-header">
-                    <h1>User Management</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
+                            <Menu size={24} />
+                        </button>
+                        <h1 style={{ margin: 0 }}>User Management</h1>
+                    </div>
                     <div className="header-actions">
                         <button className="btn btn-secondary" onClick={handleDownloadCSV}>
                             <Download size={18} /> Download CSV

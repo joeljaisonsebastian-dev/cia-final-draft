@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './StudentPortal.css';
-import { BookOpen, Calendar, GraduationCap, Settings, Bell, Search, Download, FileText, LogOut } from 'lucide-react';
+import { BookOpen, Calendar, GraduationCap, Settings, Bell, Search, Download, FileText, LogOut, Menu, X } from 'lucide-react';
 
 const StudentPortal = () => {
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const navigate = useNavigate();
 
     const token = localStorage.getItem('token');
@@ -73,12 +74,24 @@ const StudentPortal = () => {
         navigate('/login');
     };
 
+    const toggleMobileMenu = () => {
+        setMobileMenuOpen(!mobileMenuOpen);
+    };
+
     return (
         <div className="portal-layout">
+            {/* Mobile Overlay */}
+            {mobileMenuOpen && (
+                <div className="mobile-overlay" onClick={toggleMobileMenu}></div>
+            )}
+
             {/* Sidebar */}
-            <aside className="sidebar">
+            <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
                     <h2>CIA <span>Portal</span></h2>
+                    <button className="close-menu-btn" onClick={toggleMobileMenu}>
+                        <X size={24} />
+                    </button>
                 </div>
 
                 <nav className="sidebar-nav">
@@ -117,6 +130,9 @@ const StudentPortal = () => {
             {/* Main Content */}
             <main className="portal-main">
                 <header className="portal-header">
+                    <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
+                        <Menu size={24} />
+                    </button>
                     <div className="search-bar">
                         <Search size={20} className="search-icon" />
                         <input type="text" placeholder="Search courses, files..." />

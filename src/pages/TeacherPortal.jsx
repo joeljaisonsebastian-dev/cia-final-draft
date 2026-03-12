@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './TeacherPortal.css';
-import { BookOpen, Users, BarChart3, Settings, Bell, Search, Upload, Trash2, FileText, LogOut } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Settings, Bell, Search, Upload, Trash2, FileText, LogOut, Menu, X } from 'lucide-react';
 
 const TeacherPortal = () => {
     const [files, setFiles] = useState([]);
@@ -9,6 +9,7 @@ const TeacherPortal = () => {
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
@@ -135,12 +136,24 @@ const TeacherPortal = () => {
         navigate('/login');
     };
 
+    const toggleMobileMenu = () => {
+        setMobileMenuOpen(!mobileMenuOpen);
+    };
+
     return (
         <div className="portal-layout">
+            {/* Mobile Overlay */}
+            {mobileMenuOpen && (
+                <div className="mobile-overlay" onClick={toggleMobileMenu}></div>
+            )}
+
             {/* Sidebar */}
-            <aside className="sidebar">
+            <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
                     <h2>CIA <span>Portal</span></h2>
+                    <button className="close-menu-btn" onClick={toggleMobileMenu}>
+                        <X size={24} />
+                    </button>
                 </div>
 
                 <nav className="sidebar-nav">
@@ -179,6 +192,9 @@ const TeacherPortal = () => {
             {/* Main Content */}
             <main className="portal-main">
                 <header className="portal-header">
+                    <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
+                        <Menu size={24} />
+                    </button>
                     <div className="search-bar">
                         <Search size={20} className="search-icon" />
                         <input type="text" placeholder="Search students, assignments..." />
