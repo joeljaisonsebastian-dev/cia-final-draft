@@ -340,7 +340,10 @@ const AdminPanel = () => {
                     <div className="mobile-logo-text admin-logo">
                         Admin <span>Panel</span>
                     </div>
-                    <h1 className="desktop-header-title">User Management</h1>
+                    <h1 className="desktop-header-title">
+                        {activeTab === 'students' ? 'User Management' :
+                            activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + ' Management'}
+                    </h1>
                     <div className="header-actions">
                         <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
                             <Upload size={18} /> Import
@@ -364,163 +367,172 @@ const AdminPanel = () => {
                 {error && <div className="alert alert-error">{error}</div>}
                 {success && <div className="alert alert-success">{success}</div>}
 
-                {/* Pending Approvals Table */}
-                {pendingUsers.length > 0 && (
-                    <div className="table-card" style={{ marginBottom: "2rem", border: "1px solid #f59e0b" }}>
-                        <div style={{ padding: "16px 20px", background: "rgba(245, 158, 11, 0.1)", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "8px" }}>
-                            <Shield size={20} color="#f59e0b" />
-                            <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#f59e0b" }}>Pending Approvals (Signups)</h3>
-                        </div>
-                        <table className="students-table">
-                            <thead>
-                                <tr>
-                                    <th>Role</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Date Applied</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pendingUsers.map(user => (
-                                    <tr key={user._id}>
-                                        <td style={{ textTransform: 'capitalize' }}>{user.role}</td>
-                                        <td>{user.name}</td>
-                                        <td>{user.email}</td>
-                                        <td>{new Date(user.createdAt).toLocaleDateString()}</td>
-                                        <td className="actions-cell">
-                                            <button className="icon-btn save" onClick={() => handleApprove(user._id)} title="Approve">
-                                                <CheckCircle size={16} />
-                                            </button>
-                                            <button className="icon-btn delete" onClick={() => handleReject(user._id)} title="Reject">
-                                                <XCircle size={16} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Add Student Form */}
-                {showAddForm && (
-                    <div className="add-form-card">
-                        <h3>Add New Student Directly (Active by default)</h3>
-                        <form onSubmit={handleAddStudent}>
-                            <div className="form-row">
-                                <input
-                                    type="text"
-                                    placeholder="Student name"
-                                    value={newStudent.name}
-                                    onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                                    required
-                                />
-                                <input
-                                    type="email"
-                                    placeholder="Student email"
-                                    value={newStudent.email}
-                                    onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                                    required
-                                />
-                                <button type="submit" className="btn btn-primary">Add</button>
-                                <button type="button" className="btn btn-ghost" onClick={() => setShowAddForm(false)}>
-                                    Cancel
-                                </button>
+                {activeTab === 'students' ? (
+                    <>
+                        {/* Pending Approvals Table */}
+                        {pendingUsers.length > 0 && (
+                            <div className="table-card" style={{ marginBottom: "2rem", border: "1px solid #f59e0b" }}>
+                                <div style={{ padding: "16px 20px", background: "rgba(245, 158, 11, 0.1)", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <Shield size={20} color="#f59e0b" />
+                                    <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#f59e0b" }}>Pending Approvals (Signups)</h3>
+                                </div>
+                                <table className="students-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Role</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Date Applied</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {pendingUsers.map(user => (
+                                            <tr key={user._id}>
+                                                <td style={{ textTransform: 'capitalize' }}>{user.role}</td>
+                                                <td>{user.name}</td>
+                                                <td>{user.email}</td>
+                                                <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                                                <td className="actions-cell">
+                                                    <button className="icon-btn save" onClick={() => handleApprove(user._id)} title="Approve">
+                                                        <CheckCircle size={16} />
+                                                    </button>
+                                                    <button className="icon-btn delete" onClick={() => handleReject(user._id)} title="Reject">
+                                                        <XCircle size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        </form>
-                        <p className="form-hint">A password will be auto-generated for the student and saved to the CSV.</p>
+                        )}
+
+                        {/* Add Student Form */}
+                        {showAddForm && (
+                            <div className="add-form-card">
+                                <h3>Add New Student Directly (Active by default)</h3>
+                                <form onSubmit={handleAddStudent}>
+                                    <div className="form-row">
+                                        <input
+                                            type="text"
+                                            placeholder="Student name"
+                                            value={newStudent.name}
+                                            onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                                            required
+                                        />
+                                        <input
+                                            type="email"
+                                            placeholder="Student email"
+                                            value={newStudent.email}
+                                            onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                                            required
+                                        />
+                                        <button type="submit" className="btn btn-primary">Add</button>
+                                        <button type="button" className="btn btn-ghost" onClick={() => setShowAddForm(false)}>
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                                <p className="form-hint">A password will be auto-generated for the student and saved to the CSV.</p>
+                            </div>
+                        )}
+
+                        {/* Active Students Table */}
+                        <div className="table-card">
+                            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Active Students</h3>
+                            </div>
+                            {loading ? (
+                                <div className="loading-state">Loading actual students...</div>
+                            ) : students.length === 0 ? (
+                                <div className="empty-state">
+                                    <Users size={48} />
+                                    <p>No active students yet.</p>
+                                </div>
+                            ) : (
+                                <table className="students-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Date Added</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {students.map((student, index) => (
+                                            <tr key={student._id}>
+                                                <td>{index + 1}</td>
+                                                <td>
+                                                    {editingId === student._id ? (
+                                                        <input
+                                                            type="text"
+                                                            value={editData.name}
+                                                            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                                                            className="edit-input"
+                                                        />
+                                                    ) : (
+                                                        student.name
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {editingId === student._id ? (
+                                                        <input
+                                                            type="email"
+                                                            value={editData.email}
+                                                            onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                                                            className="edit-input"
+                                                        />
+                                                    ) : (
+                                                        student.email
+                                                    )}
+                                                </td>
+                                                <td>{new Date(student.createdAt).toLocaleDateString()}</td>
+                                                <td className="actions-cell">
+                                                    {editingId === student._id ? (
+                                                        <>
+                                                            <button className="icon-btn save" onClick={() => handleEditSave(student._id)} title="Save">
+                                                                <Check size={16} />
+                                                            </button>
+                                                            <button className="icon-btn cancel" onClick={() => setEditingId(null)} title="Cancel">
+                                                                <X size={16} />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <button className="icon-btn edit" onClick={() => handleEditStart(student)} title="Edit">
+                                                                <Edit3 size={16} />
+                                                            </button>
+                                                            <div className="export-dropdown">
+                                                                <button className="icon-btn" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }} title="Export User">
+                                                                    <Download size={16} />
+                                                                </button>
+                                                                <div className="dropdown-content">
+                                                                    <button onClick={() => handleExportUser(student._id, student.name, 'csv')}>As CSV</button>
+                                                                    <button onClick={() => handleExportUser(student._id, student.name, 'xlsx')}>As Excel</button>
+                                                                </div>
+                                                            </div>
+                                                            <button className="icon-btn delete" onClick={() => handleDeleteStudent(student._id)} title="Delete">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <div className="empty-state" style={{ padding: '60px', opacity: 0.6 }}>
+                        <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Management</h2>
+                        <p>This section is currently under development. Please check back later.</p>
                     </div>
                 )}
-
-                {/* Active Students Table */}
-                <div className="table-card">
-                    <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                        <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Active Students</h3>
-                    </div>
-                    {loading ? (
-                        <div className="loading-state">Loading actual students...</div>
-                    ) : students.length === 0 ? (
-                        <div className="empty-state">
-                            <Users size={48} />
-                            <p>No active students yet.</p>
-                        </div>
-                    ) : (
-                        <table className="students-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Date Added</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {students.map((student, index) => (
-                                    <tr key={student._id}>
-                                        <td>{index + 1}</td>
-                                        <td>
-                                            {editingId === student._id ? (
-                                                <input
-                                                    type="text"
-                                                    value={editData.name}
-                                                    onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                                                    className="edit-input"
-                                                />
-                                            ) : (
-                                                student.name
-                                            )}
-                                        </td>
-                                        <td>
-                                            {editingId === student._id ? (
-                                                <input
-                                                    type="email"
-                                                    value={editData.email}
-                                                    onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                                                    className="edit-input"
-                                                />
-                                            ) : (
-                                                student.email
-                                            )}
-                                        </td>
-                                        <td>{new Date(student.createdAt).toLocaleDateString()}</td>
-                                        <td className="actions-cell">
-                                            {editingId === student._id ? (
-                                                <>
-                                                    <button className="icon-btn save" onClick={() => handleEditSave(student._id)} title="Save">
-                                                        <Check size={16} />
-                                                    </button>
-                                                    <button className="icon-btn cancel" onClick={() => setEditingId(null)} title="Cancel">
-                                                        <X size={16} />
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <button className="icon-btn edit" onClick={() => handleEditStart(student)} title="Edit">
-                                                        <Edit3 size={16} />
-                                                    </button>
-                                                    <div className="export-dropdown">
-                                                        <button className="icon-btn" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }} title="Export User">
-                                                            <Download size={16} />
-                                                        </button>
-                                                        <div className="dropdown-content">
-                                                            <button onClick={() => handleExportUser(student._id, student.name, 'csv')}>As CSV</button>
-                                                            <button onClick={() => handleExportUser(student._id, student.name, 'xlsx')}>As Excel</button>
-                                                        </div>
-                                                    </div>
-                                                    <button className="icon-btn delete" onClick={() => handleDeleteStudent(student._id)} title="Delete">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
             </main >
         </div >
     );
