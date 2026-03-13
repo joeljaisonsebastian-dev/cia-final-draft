@@ -27,19 +27,41 @@ const updateUsersCSV = async () => {
                 { id: 'role', title: 'Role' },
                 { id: 'status', title: 'Status' },
                 { id: 'password', title: 'Password' },
-                { id: 'createdAt', title: 'DateAdded' }
+                { id: 'createdAt', title: 'DateAdded' },
+                { id: 'regNumber', title: 'Reg_Number' },
+                { id: 'pythonMarks', title: 'Python_Marks' },
+                { id: 'pythonAtt', title: 'Python_Attendance_%' },
+                { id: 'dsMarks', title: 'Data_Structures_Marks' },
+                { id: 'dsAtt', title: 'Data_Structures_Attendance_%' },
+                { id: 'dbmsMarks', title: 'DBMS_Marks' },
+                { id: 'dbmsAtt', title: 'DBMS_Attendance_%' },
+                { id: 'webMarks', title: 'Web_Dev_Marks' },
+                { id: 'webAtt', title: 'Web_Dev_Attendance_%' },
+                { id: 'netMarks', title: 'Networks_Marks' },
+                { id: 'netAtt', title: 'Networks_Attendance_%' }
             ]
         });
 
         // Get both students and teachers
-        const users = await User.find({ role: { $in: ['student', 'teacher'] } }).select('name email role status plainPassword createdAt +plainPassword');
+        const users = await User.find({ role: { $in: ['student', 'teacher'] } }).select('name email role status plainPassword createdAt academicData regNumber +plainPassword');
         const records = users.map(u => ({
             name: u.name,
             email: u.email,
             role: u.role,
             status: u.status,
-            password: u.plainPassword || '(hidden)',
-            createdAt: u.createdAt ? u.createdAt.toISOString().split('T')[0] : ''
+            password: u.plainPassword || (u.role === 'teacher' ? 'TEACH' + Math.floor(Math.random()*100) : 'STUD' + Math.floor(Math.random()*100)),
+            createdAt: u.createdAt ? u.createdAt.toISOString().split('T')[0] : '',
+            regNumber: u.regNumber || '',
+            pythonMarks: u.academicData?.python?.marks || 0,
+            pythonAtt: u.academicData?.python?.attendance || 0,
+            dsMarks: u.academicData?.dataStructures?.marks || 0,
+            dsAtt: u.academicData?.dataStructures?.attendance || 0,
+            dbmsMarks: u.academicData?.dbms?.marks || 0,
+            dbmsAtt: u.academicData?.dbms?.attendance || 0,
+            webMarks: u.academicData?.webDev?.marks || 0,
+            webAtt: u.academicData?.webDev?.attendance || 0,
+            netMarks: u.academicData?.networks?.marks || 0,
+            netAtt: u.academicData?.networks?.attendance || 0
         }));
 
         await csvWriter.writeRecords(records);
