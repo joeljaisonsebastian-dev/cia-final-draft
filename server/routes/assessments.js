@@ -24,6 +24,26 @@ if (!fs.existsSync('uploads/questions/')) {
     fs.mkdirSync('uploads/questions/', { recursive: true });
 }
 
+// AI Question Generation
+router.post('/generate-ai', auth, async (req, res) => {
+    try {
+        const { count, topic } = req.body;
+        // Mocking AI response for now. In production, call Gemini/OpenAI here.
+        const mockQuestions = Array.from({ length: count || 5 }).map((_, i) => ({
+            id: Date.now() + i,
+            questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
+            questionType: 'mcq',
+            marks: 1,
+            options: ['Option A', 'Option B', 'Option C', 'Option D'],
+            correctAnswer: 'Option A'
+        }));
+        
+        res.json(mockQuestions);
+    } catch (err) {
+        res.status(500).json({ message: 'AI Generation failed' });
+    }
+});
+
 // Get all assessments for a teacher
 router.get('/teacher', auth, async (req, res) => {
     try {
@@ -74,6 +94,21 @@ router.put('/publish/:id', auth, async (req, res) => {
     }
 });
 
+// Publish results for assessment
+router.put('/publish-results/:id', auth, async (req, res) => {
+    try {
+        const assessment = await Assessment.findById(req.params.id);
+        if (!assessment) return res.status(404).json({ message: 'Not found' });
+        if (assessment.teacher.toString() !== req.user.id) return res.status(403).json({ message: 'Unauthorized' });
+
+        assessment.status = 'results_published';
+        await assessment.save();
+        res.json(assessment);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Submit assignment/exam (Student)
 router.post('/submit/:id', auth, async (req, res) => {
     try {
@@ -107,9 +142,20 @@ router.get('/student', auth, async (req, res) => {
         const assessments = await Assessment.find({ status: 'published' })
             .select('title description duration totalMarks createdAt status')
             .sort({ createdAt: -1 });
-            
-        // Filter out already submitted ones if needed, or send all and let frontend handle
         res.json(assessments);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get single assessment details for student to start exam
+router.get('/student/:id', auth, async (req, res) => {
+    try {
+        const assessment = await Assessment.findById(req.params.id);
+        if (!assessment || assessment.status !== 'published') {
+            return res.status(404).json({ message: 'Assessment not available' });
+        }
+        res.json(assessment);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

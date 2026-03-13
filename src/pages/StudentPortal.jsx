@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './StudentPortal.css';
-import { BookOpen, Calendar, GraduationCap, Settings, Bell, Search, Download, FileText, LogOut, Menu, X } from 'lucide-react';
+import { BookOpen, Calendar, GraduationCap, Settings, Bell, Search, Download, FileText, LogOut, Menu, X, FileQuestion, Clock, Play, AlertCircle, PlayCircle } from 'lucide-react';
+import TakeAssessment from '../components/TakeAssessment';
 
 const StudentPortal = () => {
     const [files, setFiles] = useState([]);
@@ -9,6 +10,9 @@ const StudentPortal = () => {
     const [error, setError] = useState('');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [assessments, setAssessments] = useState([]);
+    const [takingExam, setTakingExam] = useState(null); // Current exam object being taken
+    const [loadingAsmt, setLoadingAsmt] = useState(false);
     const navigate = useNavigate();
 
     const token = localStorage.getItem('token');
@@ -20,7 +24,23 @@ const StudentPortal = () => {
             return;
         }
         fetchFiles();
+        fetchAssessments();
     }, []);
+
+    const fetchAssessments = async () => {
+        setLoadingAsmt(true);
+        try {
+            const res = await fetch('/api/assessments/student', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            setAssessments(data);
+        } catch (err) {
+            console.error('Failed to load assessments');
+        } finally {
+            setLoadingAsmt(false);
+        }
+    };
 
     const fetchFiles = async () => {
         try {
@@ -118,6 +138,13 @@ const StudentPortal = () => {
                         <span>Schedule</span>
                     </button>
                     <button
+                        onClick={() => { setActiveTab('assessments'); setMobileMenuOpen(false); }}
+                        className={`nav-item ${activeTab === 'assessments' ? 'active' : ''}`}
+                    >
+                        <FileQuestion size={20} />
+                        <span>Assessments</span>
+                    </button>
+                    <button
                         onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
                         className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
                     >
@@ -162,8 +189,60 @@ const StudentPortal = () => {
                 </header>
 
                 <div className="dashboard-content">
-                    {activeTab === 'dashboard' ? (
+                    {activeTab === 'assessments' ? (
+                        <div className="assessments-section">
+                            <div className="section-header">
+                                <h1>Assessments</h1>
+                                <p>View and take exams assigned to you.</p>
+                            </div>
+
+                            {loadingAsmt ? (
+                                <div className="loading-state">Loading assessments...</div>
+                            ) : assessments.length === 0 ? (
+                                <div className="empty-state">
+                                    <FileQuestion size={48} />
+                                    <p>No active assessments at the moment.</p>
+                                </div>
+                            ) : (
+                                <div className="assessments-grid">
+                                    {assessments.map((asmt) => (
+                                        <div key={asmt._id} className="assessment-card">
+                                            <div className="asmt-header">
+                                                <span className={`asmt-status active`}>Active</span>
+                                                <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
+                                            </div>
+                                            <h3>{asmt.title}</h3>
+                                            <p>{asmt.description || 'No description.'}</p>
+                                            <div className="asmt-stats">
+                                                <div className="asmt-stat">
+                                                    <Clock size={16} />
+                                                    <span>{asmt.duration} Mins</span>
+                                                </div>
+                                                <div className="asmt-stat">
+                                                    <span>{asmt.totalMarks} Marks</span>
+                                                </div>
+                                            </div>
+                                            <div className="asmt-footer">
+                                                <button className="btn-start" onClick={() => handleStartExam(asmt._id)}>
+                                                    <Play size={16} /> Start Exam
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {takingExam && (
+                                <TakeAssessment 
+                                    assessment={takingExam} 
+                                    onComplete={handleSubmitExam}
+                                    onCancel={() => setTakingExam(null)}
+                                />
+                            )}
+                        </div>
+                    ) : activeTab === 'dashboard' ? (
                         <>
+                            {/* ... previous content ... */}
                             <div className="dashboard-header">
                                 <h1>Welcome back, {user.name || 'Student'}!</h1>
                                 <p>Browse and download files shared by your teachers.</p>
@@ -174,14 +253,14 @@ const StudentPortal = () => {
                             {/* Stats */}
                             <div className="stats-grid">
                                 <div className="stat-card">
+                                    <h3>Upcoming Exams</h3>
+                                    <div className="stat-value">{assessments.length}</div>
+                                    <span className="stat-trend neutral">Don't forget to study!</span>
+                                </div>
+                                <div className="stat-card">
                                     <h3>Available Files</h3>
                                     <div className="stat-value">{files.length}</div>
                                     <span className="stat-trend neutral">From your teachers</span>
-                                </div>
-                                <div className="stat-card">
-                                    <h3>Total Size</h3>
-                                    <div className="stat-value">{formatSize(files.reduce((a, f) => a + f.size, 0))}</div>
-                                    <span className="stat-trend neutral">All shared files</span>
                                 </div>
                             </div>
 

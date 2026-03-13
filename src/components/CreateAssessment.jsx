@@ -9,6 +9,30 @@ const CreateAssessment = ({ onSave, onCancel }) => {
     const [questions, setQuestions] = useState([]);
     const [showAIDialog, setShowAIDialog] = useState(false);
     const [aiCount, setAiCount] = useState(5);
+    const [aiTopic, setAiTopic] = useState('');
+    const [generatingAI, setGeneratingAI] = useState(false);
+
+    const handleGenerateAI = async () => {
+        setGeneratingAI(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/assessments/generate-ai', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ count: aiCount, topic: aiTopic })
+            });
+            const data = await res.json();
+            setQuestions([...questions, ...data]);
+            setShowAIDialog(false);
+        } catch (err) {
+            alert('AI Generation failed');
+        } finally {
+            setGeneratingAI(false);
+        }
+    };
 
     const addQuestion = (type = 'mcq') => {
         const newQ = {
@@ -59,25 +83,24 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                 </header>
 
                 <div className="modal-body">
-                    <div className="form-section">
+                    <div className="form-grid">
                         <div className="input-group">
                             <label>Assessment Title</label>
                             <input 
                                 type="text" 
-                                placeholder="Final Semester Exam" 
+                                placeholder="e.g. Final Semester Exam" 
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                             />
                         </div>
-                        <div className="input-row">
-                            <div className="input-group">
-                                <label>Duration (Minutes)</label>
-                                <input 
-                                    type="number" 
-                                    value={duration}
-                                    onChange={(e) => setDuration(e.target.value)}
-                                />
-                            </div>
+                        <div className="input-group">
+                            <label>Duration (Minutes)</label>
+                            <input 
+                                type="number" 
+                                value={duration}
+                                onChange={(e) => setDuration(e.target.value)}
+                                min="1"
+                            />
                         </div>
                     </div>
 
@@ -109,6 +132,7 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                                         <span>Question {index + 1}</span>
                                         <div className="q-meta">
                                             <select 
+                                                className="asmt-select"
                                                 value={q.marks} 
                                                 onChange={(e) => updateQuestion(q.id, 'marks', e.target.value)}
                                             >
@@ -170,6 +194,13 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                         <h3>AI Question Generator</h3>
                         <p>Generate smart questions using artificial intelligence.</p>
                         <div className="ai-options">
+                            <label>Topic / Subject</label>
+                            <input 
+                                type="text" 
+                                placeholder="e.g. Quantum Physics, Basic Math..."
+                                value={aiTopic}
+                                onChange={(e) => setAiTopic(e.target.value)}
+                            />
                             <label>How many questions?</label>
                             <input 
                                 type="number" 
@@ -180,11 +211,9 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                         </div>
                         <div className="ai-actions">
                             <button className="secondary" onClick={() => setShowAIDialog(false)}>Cancel</button>
-                            <button className="primary" onClick={() => {
-                                // Logic for AI call would go here
-                                alert('AI Generation triggered for ' + aiCount + ' questions');
-                                setShowAIDialog(false);
-                            }}>Generate</button>
+                            <button className="primary" onClick={handleGenerateAI} disabled={generatingAI}>
+                                {generatingAI ? 'Generating...' : 'Generate Questions'}
+                            </button>
                         </div>
                     </div>
                 </div>

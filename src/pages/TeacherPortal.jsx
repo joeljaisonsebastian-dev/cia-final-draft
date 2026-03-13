@@ -190,6 +190,20 @@ const TeacherPortal = () => {
         }
     };
 
+    const handlePublishResults = async (id) => {
+        try {
+            const res = await fetch(`/api/assessments/publish-results/${id}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to publish results');
+            setSuccess('Results published to students!');
+            fetchAssessments();
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
     const toggleMobileMenu = () => {
         setMobileMenuOpen(!mobileMenuOpen);
     };
@@ -335,6 +349,11 @@ const TeacherPortal = () => {
                                                     {asmt.status === 'draft' && (
                                                         <button className="btn-small btn-publish" onClick={() => handlePublish(asmt._id)}>
                                                             Publish
+                                                        </button>
+                                                    )}
+                                                    {asmt.status === 'published' && (
+                                                        <button className="btn-small btn-publish" onClick={() => handlePublishResults(asmt._id)}>
+                                                            Publish Results
                                                         </button>
                                                     )}
                                                     <button className="btn-small btn-view">View Results</button>
