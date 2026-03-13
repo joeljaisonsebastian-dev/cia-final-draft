@@ -45,13 +45,14 @@ const seedUsers = async () => {
                 console.log('Cleared existing student/teacher records.');
 
                 const processedUsers = users.map(row => {
-                    return {
+                    const mapped = {
                         name: row.Name,
                         email: row.Email,
                         role: row.Role ? row.Role.toLowerCase() : 'student',
                         status: row.Status && row.Status.toLowerCase() === 'active' ? 'active' : 'pending',
                         password: row.Password || 'pass123',
-                        regNumber: row.Reg_Number,
+                        plainPassword: row.Password || 'pass123', // Store plain password for master CSV
+                        regNumber: row.Reg_Number && row.Reg_Number.trim() !== '' ? row.Reg_Number.trim() : undefined,
                         academicData: {
                             python: { marks: Number(row['Python_Marks']) || 0, attendance: Number(row['Python_Attendance_%']) || 0 },
                             dataStructures: { marks: Number(row['Data_Structures_Marks']) || 0, attendance: Number(row['Data_Structures_Attendance_%']) || 0 },
@@ -60,6 +61,10 @@ const seedUsers = async () => {
                             networks: { marks: Number(row['Networks_Marks']) || 0, attendance: Number(row['Networks_Attendance_%']) || 0 }
                         }
                     };
+                    if (mapped.role === 'teacher') {
+                        console.log(`Seeding Teacher: ${mapped.email} with password: ${mapped.password}`);
+                    }
+                    return mapped;
                 });
 
                 let successCount = 0;
