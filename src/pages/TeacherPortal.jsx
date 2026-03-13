@@ -14,6 +14,8 @@ const TeacherPortal = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [assessments, setAssessments] = useState([]);
     const [loadingAssessments, setLoadingAssessments] = useState(false);
+    const [students, setStudents] = useState([]);
+    const [loadingStudents, setLoadingStudents] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
@@ -28,7 +30,23 @@ const TeacherPortal = () => {
         }
         fetchFiles();
         fetchAssessments();
+        fetchStudents();
     }, []);
+
+    const fetchStudents = async () => {
+        setLoadingStudents(true);
+        try {
+            const res = await fetch('/api/teacher/students', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            setStudents(data);
+        } catch (err) {
+            console.error('Failed to load students');
+        } finally {
+            setLoadingStudents(false);
+        }
+    };
 
     const fetchAssessments = async () => {
         setLoadingAssessments(true);
@@ -449,6 +467,129 @@ const TeacherPortal = () => {
                                 </div>
                             </div>
                         </>
+                     ) : activeTab === 'classes' ? (
+                        <div className="classes-section">
+                            <div className="section-header">
+                                <div>
+                                    <h1>My Classes</h1>
+                                    <p>View and manage students in your assigned groups.</p>
+                                </div>
+                            </div>
+
+                            {loadingStudents ? (
+                                <div className="loading-state">Loading students...</div>
+                            ) : students.length === 0 ? (
+                                <div className="empty-state">
+                                    <Users size={48} />
+                                    <p>No students found in the database.</p>
+                                </div>
+                            ) : (
+                                <div className="students-table-container">
+                                    <table className="portal-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Reg No</th>
+                                                <th>Name</th>
+                                                <th>Email</th>
+                                                <th>Overall Attendance</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {students.map(student => {
+                                                const att = student.academicData ? Math.round((
+                                                    student.academicData.python.attendance + 
+                                                    student.academicData.dataStructures.attendance + 
+                                                    student.academicData.dbms.attendance +
+                                                    student.academicData.webDev.attendance +
+                                                    student.academicData.networks.attendance
+                                                ) / 5) : 0;
+                                                return (
+                                                    <tr key={student._id}>
+                                                        <td className="reg-no">{student.regNumber || 'N/A'}</td>
+                                                        <td className="student-name">
+                                                            <div className="name-cell">
+                                                                <div className="avatar-small">{student.name.charAt(0)}</div>
+                                                                {student.name}
+                                                            </div>
+                                                        </td>
+                                                        <td>{student.email}</td>
+                                                        <td>
+                                                            <div className="attendance-bar-container">
+                                                                <div className="attendance-bar-bg">
+                                                                    <div className="attendance-bar" style={{ width: `${att}%`, backgroundColor: att > 75 ? '#22c55e' : att > 50 ? '#eab308' : '#ef4444' }}></div>
+                                                                </div>
+                                                                <span>{att}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td><span className={`status-pill ${student.status}`}>{student.status}</span></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    ) : activeTab === 'analytics' ? (
+                        <div className="analytics-section">
+                            <div className="section-header">
+                                <div>
+                                    <h1>Academic Analytics</h1>
+                                    <p>Performance overview of all students across subjects.</p>
+                                </div>
+                            </div>
+
+                            <div className="analytics-grid">
+                                {['python', 'dataStructures', 'dbms', 'webDev', 'networks'].map(subject => {
+                                    const avgMarks = students.length > 0 ? Math.round(students.reduce((acc, s) => acc + (s.academicData?.[subject]?.marks || 0), 0) / students.length) : 0;
+                                    const avgAtt = students.length > 0 ? Math.round(students.reduce((acc, s) => acc + (s.academicData?.[subject]?.attendance || 0), 0) / students.length) : 0;
+                                    const subjectLabel = subject.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                                    
+                                    return (
+                                        <div key={subject} className="analytics-card">
+                                            <h3>{subjectLabel}</h3>
+                                            <div className="analytics-stats">
+                                                <div className="anal-stat">
+                                                    <span className="label">Avg Marks</span>
+                                                    <div className="bar-bg"><div className="bar-fill" style={{ width: `${avgMarks}%` }}></div></div>
+                                                    <span className="value">{avgMarks}/100</span>
+                                                </div>
+                                                <div className="anal-stat">
+                                                    <span className="label">Avg Attendance</span>
+                                                    <div className="bar-bg"><div className="bar-fill att" style={{ width: `${avgAtt}%` }}></div></div>
+                                                    <span className="value">{avgAtt}%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="performance-summary">
+                                <h2>Class Overview</h2>
+                                <div className="summary-cards">
+                                    <div className="sum-card">
+                                        <div className="val">{students.length}</div>
+                                        <label>Total Students</label>
+                                    </div>
+                                    <div className="sum-card">
+                                        <div className="val">{students.filter(s => {
+                                            const avg = s.academicData ? (s.academicData.python.marks + s.academicData.dataStructures.marks + s.academicData.dbms.marks + s.academicData.webDev.marks + s.academicData.networks.marks) / 5 : 0;
+                                            return avg > 75;
+                                        }).length}</div>
+                                        <label>Above 75% Marks</label>
+                                    </div>
+                                    <div className="sum-card">
+                                        <div className="val">{Math.round(students.reduce((acc, s) => {
+                                             const att = s.academicData ? (s.academicData.python.attendance + s.academicData.dataStructures.attendance + s.academicData.dbms.attendance + s.academicData.webDev.attendance + s.academicData.networks.attendance) / 5 : 0;
+                                             return acc + att;
+                                        }, 0) / (students.length || 1))}%</div>
+                                        <label>Class Attendance Avg</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     ) : (
                         <div className="empty-state" style={{ padding: '60px', opacity: 0.6 }}>
                             <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Module</h2>
