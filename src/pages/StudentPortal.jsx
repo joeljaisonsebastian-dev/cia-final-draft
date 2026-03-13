@@ -100,6 +100,7 @@ const StudentPortal = () => {
     };
 
     const handleStartExam = async (id) => {
+        console.log('Attempting to start exam:', id);
         try {
             const res = await fetch(`/api/assessments/student/${id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -313,6 +314,21 @@ const StudentPortal = () => {
                                     <div className="stat-value">{files.length}</div>
                                     <span className="stat-trend neutral">From your teachers</span>
                                 </div>
+                                {user.academicData && (
+                                    <div className="stat-card">
+                                        <h3>Attendance Avg</h3>
+                                        <div className="stat-value">
+                                            {Math.round((
+                                                user.academicData.python.attendance + 
+                                                user.academicData.dataStructures.attendance + 
+                                                user.academicData.dbms.attendance +
+                                                user.academicData.webDev.attendance +
+                                                user.academicData.networks.attendance
+                                            ) / 5)}%
+                                        </div>
+                                        <span className="stat-trend high">On track</span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Files list */}

@@ -140,17 +140,18 @@ const TakeAssessment = ({ assessment, onComplete, onCancel }) => {
 
                         <div className="q-footer">
                             <button 
+                                type="button"
                                 disabled={currentIndex === 0}
                                 onClick={() => setCurrentIndex(prev => prev - 1)}
                             >
                                 <ChevronLeft /> Previous
                             </button>
-                            {currentIndex === assessment.questions.length - 1 ? (
-                                <button className="submit-btn" onClick={handleSubmit}>
+                            {currentIndex === (assessment.questions?.length || 0) - 1 ? (
+                                <button type="button" className="submit-btn" onClick={handleSubmit}>
                                     Submit Exam <Save size={18} />
                                 </button>
                             ) : (
-                                <button onClick={() => setCurrentIndex(prev => prev + 1)}>
+                                <button type="button" onClick={() => setCurrentIndex(prev => prev + 1)}>
                                     Next <ChevronRight />
                                 </button>
                             )}
