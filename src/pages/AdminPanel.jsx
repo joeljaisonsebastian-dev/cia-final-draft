@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserPlus, Download, Trash2, Edit3, X, Check, LogOut, Shield, CheckCircle, XCircle, Menu, BarChart3, Settings } from 'lucide-react';
+import { Users, UserPlus, Download, Trash2, Edit3, X, Check, LogOut, Shield, CheckCircle, XCircle, Menu, BarChart3, Settings, Bell } from 'lucide-react';
 import './AdminPanel.css';
 
 const AdminPanel = () => {
@@ -332,11 +332,6 @@ const AdminPanel = () => {
             {/* Main Content */}
             <main className="admin-main">
                 <header className="admin-header">
-                    <div className="mobile-header-left">
-                        <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
-                            <Menu size={24} />
-                        </button>
-                    </div>
                     <div className="mobile-logo-text admin-logo">
                         Admin <span>Panel</span>
                     </div>
@@ -345,11 +340,11 @@ const AdminPanel = () => {
                             activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + ' Management'}
                     </h1>
                     <div className="header-actions">
-                        <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+                        <label className="btn btn-secondary desktop-only" style={{ cursor: 'pointer' }}>
                             <Upload size={18} /> Import
                             <input type="file" accept=".csv, .xlsx" onChange={handleImportFile} style={{ display: 'none' }} />
                         </label>
-                        <div className="export-dropdown">
+                        <div className="export-dropdown desktop-only">
                             <button className="btn btn-secondary">
                                 <Download size={18} /> Export
                             </button>
@@ -358,8 +353,18 @@ const AdminPanel = () => {
                                 <button onClick={() => handleExportData('xlsx')}>As Excel</button>
                             </div>
                         </div>
-                        <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
+                        <button className="btn btn-primary desktop-only" onClick={() => setShowAddForm(!showAddForm)}>
                             <UserPlus size={18} /> Add Student
+                        </button>
+                        
+                        {/* Mobile & Desktop Actions */}
+                        <button className="icon-btn bell-btn" style={{ position: 'relative', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.6)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                            <Bell size={20} />
+                            <span style={{ position: 'absolute', top: '-2px', right: '-2px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: 'white', fontSize: '0.65rem', fontWeight: 'bold', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a1a' }}>0</span>
+                        </button>
+                        
+                        <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
+                            <Menu size={24} />
                         </button>
                     </div>
                 </header>

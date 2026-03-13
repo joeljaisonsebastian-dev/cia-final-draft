@@ -143,9 +143,6 @@ const StudentPortal = () => {
             {/* Main Content */}
             <main className="portal-main">
                 <header className="portal-header">
-                    <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
-                        <Menu size={24} />
-                    </button>
                     <div className="mobile-logo-text">
                         CIA <span>Portal</span>
                     </div>
@@ -157,6 +154,9 @@ const StudentPortal = () => {
                         <button className="icon-btn">
                             <Bell size={20} />
                             <span className="notification-badge">{files.length}</span>
+                        </button>
+                        <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
+                            <Menu size={24} />
                         </button>
                     </div>
                 </header>
