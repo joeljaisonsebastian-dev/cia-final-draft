@@ -12,12 +12,12 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 const checkData = async () => {
     try {
         await mongoose.connect(process.env.MONGO_URI);
-        const students = await User.find({ role: 'student' });
-        console.log('Total students:', students.length);
-        if (students.length > 0) {
-            const s = students[0];
-            console.log('Name:', s.name);
-            console.log('AcademicData:', JSON.stringify(s.academicData, null, 2));
+        const isabella = await User.findOne({ email: 'isabella8@gmail.com' });
+        if (isabella) {
+            console.log('Isabella Found:', isabella.name);
+            console.log('AcademicData:', JSON.stringify(isabella.academicData, null, 2));
+        } else {
+            console.log('Isabella not found');
         }
         process.exit(0);
     } catch (err) {
