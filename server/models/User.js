@@ -33,6 +33,18 @@ const userSchema = new mongoose.Schema({
         type: String,
         select: false
     },
+    regNumber: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    academicData: {
+        python: { marks: Number, attendance: Number },
+        dataStructures: { marks: Number, attendance: Number },
+        dbms: { marks: Number, attendance: Number },
+        webDev: { marks: Number, attendance: Number },
+        networks: { marks: Number, attendance: Number }
+    },
     createdAt: {
         type: Date,
         default: Date.now

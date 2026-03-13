@@ -1052,7 +1052,7 @@
     gap: 0.5rem;
 }
 
-.add-dropdown:hover .dropdown-menu {
+.dropdown-menu.open {
     display: flex;
     animation: fadeIn 0.2s ease;
 }

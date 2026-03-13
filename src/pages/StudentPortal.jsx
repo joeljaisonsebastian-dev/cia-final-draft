@@ -99,6 +99,57 @@ const StudentPortal = () => {
         setMobileMenuOpen(!mobileMenuOpen);
     };
 
+    const handleStartExam = async (id) => {
+        try {
+            const res = await fetch(`/api/assessments/student/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setTakingExam(data);
+                // Enter full screen if possible
+                try {
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen();
+                    }
+                } catch (e) {
+                    console.error('Fullscreen failed');
+                }
+            } else {
+                alert(data.message || 'Could not start exam');
+            }
+        } catch (err) {
+            alert('Error starting exam');
+        }
+    };
+
+    const handleSubmitExam = async (submissionData) => {
+        try {
+            const res = await fetch(`/api/assessments/submit/${takingExam._id}`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(submissionData)
+            });
+            
+            if (res.ok) {
+                alert('Exam submitted successfully!');
+                setTakingExam(null);
+                fetchAssessments();
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
+            } else {
+                const data = await res.json();
+                alert(data.message || 'Submission failed');
+            }
+        } catch (err) {
+            alert('Error submitting exam');
+        }
+    };
+
     return (
         <div className="portal-layout">
             {/* Mobile Overlay */}

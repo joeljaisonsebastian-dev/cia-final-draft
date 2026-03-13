@@ -44,6 +44,43 @@ router.post('/generate-ai', auth, async (req, res) => {
     }
 });
 
+// Upload Questions from Excel/CSV
+router.post('/upload-questions', auth, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+        const workbook = xlsx.readFile(req.file.path);
+        const sheetName = workbook.SheetNames[0];
+        const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        const questions = rows.map((row, i) => {
+            const options = [
+                row['Option A'] || row.OptionA,
+                row['Option B'] || row.OptionB,
+                row['Option C'] || row.OptionC,
+                row['Option D'] || row.OptionD
+            ].filter(Boolean);
+
+            return {
+                id: Date.now() + i,
+                questionText: row.Question || row.question || 'New Question',
+                questionType: (row.Type || row.type || 'mcq').toLowerCase(),
+                marks: row.Marks || row.marks || 1,
+                options: options,
+                correctAnswer: row.Answer || row.answer || ''
+            };
+        });
+
+        // Cleanup temporary file
+        fs.unlinkSync(req.file.path);
+
+        res.json(questions);
+    } catch (err) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        res.status(500).json({ message: 'Failed to parse file: ' + err.message });
+    }
+});
+
 // Get all assessments for a teacher
 router.get('/teacher', auth, async (req, res) => {
     try {

@@ -8,9 +8,11 @@ const CreateAssessment = ({ onSave, onCancel }) => {
     const [totalMarks, setTotalMarks] = useState(0);
     const [questions, setQuestions] = useState([]);
     const [showAIDialog, setShowAIDialog] = useState(false);
+    const [showAddMenu, setShowAddMenu] = useState(false);
     const [aiCount, setAiCount] = useState(5);
     const [aiTopic, setAiTopic] = useState('');
     const [generatingAI, setGeneratingAI] = useState(false);
+    const fileInputRef = React.useRef(null);
 
     const handleGenerateAI = async () => {
         setGeneratingAI(true);
@@ -34,16 +36,45 @@ const CreateAssessment = ({ onSave, onCancel }) => {
         }
     };
 
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/assessments/upload-questions', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setQuestions([...questions, ...data]);
+                alert('Questions uploaded successfully!');
+            } else {
+                throw new Error(data.message || 'Upload failed');
+            }
+        } catch (err) {
+            alert('File upload failed: ' + err.message);
+        }
+    };
+
     const addQuestion = (type = 'mcq') => {
         const newQ = {
             id: Date.now(),
             questionText: '',
             questionType: type,
-            marks: type === 'mcq' ? 1 : 2,
+            marks: type === 'mcq' ? 1 : (type === 'short' ? 2 : 5),
             options: type === 'mcq' ? ['', '', '', ''] : [],
             correctAnswer: ''
         };
         setQuestions([...questions, newQ]);
+        setShowAddMenu(false);
     };
 
     const removeQuestion = (id) => {
@@ -111,16 +142,27 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                                 <button className="ai-btn" onClick={() => setShowAIDialog(true)}>
                                     <Sparkles size={16} /> AI Generate
                                 </button>
-                                <button className="file-btn">
+                                <button className="file-btn" onClick={() => fileInputRef.current.click()}>
                                     <FileUp size={16} /> Upload File
                                 </button>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    style={{ display: 'none' }} 
+                                    onChange={handleFileUpload}
+                                    accept=".xlsx,.xls,.docx"
+                                />
                                 <div className="add-dropdown">
-                                    <button className="add-btn"><Plus size={16} /> Add Question</button>
-                                    <div className="dropdown-menu">
-                                        <button onClick={() => addQuestion('mcq')}>MCQ</button>
-                                        <button onClick={() => addQuestion('short')}>Short Answer (1-2 Mark)</button>
-                                        <button onClick={() => addQuestion('descriptive')}>Descriptive (5-10 Mark)</button>
-                                    </div>
+                                    <button className="add-btn" onClick={() => setShowAddMenu(!showAddMenu)}>
+                                        <Plus size={16} /> Add Question
+                                    </button>
+                                    {showAddMenu && (
+                                        <div className="dropdown-menu open">
+                                            <button onClick={() => addQuestion('mcq')}>MCQ</button>
+                                            <button onClick={() => addQuestion('short')}>Short Answer (1-2 Mark)</button>
+                                            <button onClick={() => addQuestion('descriptive')}>Descriptive (5-10 Mark)</button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
