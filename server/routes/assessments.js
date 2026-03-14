@@ -30,7 +30,24 @@ if (!fs.existsSync('uploads/questions/')) {
 router.post('/generate-ai', auth, async (req, res) => {
     try {
         const { count, topic } = req.body;
-        // Mocking AI response for now. In production, call Gemini/OpenAI here.
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (!apiKey || apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            console.warn('AI Generation requested but no API key provided. Using mock data.');
+            // Mocking AI response
+            const mockQuestions = Array.from({ length: count || 5 }).map((_, i) => ({
+                id: Date.now() + i,
+                questionText: `[MOCK] AI Question ${i + 1} about ${topic || 'General Topic'}?`,
+                questionType: 'mcq',
+                marks: 1,
+                options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                correctAnswer: 'Option A'
+            }));
+            return res.json(mockQuestions);
+        }
+
+        // Real AI generation logic would go here (e.g., calling Google Gemini API)
+        // For now, keeping mock but acknowledging the key is ready
         const mockQuestions = Array.from({ length: count || 5 }).map((_, i) => ({
             id: Date.now() + i,
             questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
