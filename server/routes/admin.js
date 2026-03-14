@@ -3,10 +3,12 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { protect, authorize } = require('../middleware/auth');
 const multer = require('multer');
 const csv = require('csv-parser');
 const xlsx = require('xlsx');
+const bcrypt = require('bcryptjs');
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -415,6 +417,145 @@ router.get('/export-user/:id/:type', protect, authorize('admin'), async (req, re
     } catch (error) {
         console.error('Single export error:', error);
         res.status(500).json({ message: 'Server error during export' });
+    }
+});
+
+// GET /api/admin/teachers — List all teachers
+router.get('/teachers', protect, authorize('admin'), async (req, res) => {
+    try {
+        const teachers = await User.find({ role: 'teacher' }).select('-password');
+        res.json(teachers);
+    } catch (error) {
+        console.error('List teachers error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// POST /api/admin/teachers — Add a new teacher directly
+router.post('/teachers', protect, authorize('admin'), async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ message: 'User with this email already exists' });
+
+        const plainPassword = Math.random().toString(36).slice(-8);
+        const teacher = new User({
+            name, email, password: plainPassword,
+            role: 'teacher', status: 'active', plainPassword
+        });
+        await teacher.save();
+        await updateUsersCSV();
+
+        res.status(201).json({
+            _id: teacher._id, name: teacher.name, email: teacher.email,
+            role: teacher.role, status: teacher.status,
+            generatedPassword: plainPassword, createdAt: teacher.createdAt
+        });
+    } catch (error) {
+        console.error('Add teacher error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// DELETE /api/admin/teachers/:id — Delete a teacher
+router.delete('/teachers/:id', protect, authorize('admin'), async (req, res) => {
+    try {
+        const teacher = await User.findById(req.params.id);
+        if (!teacher || teacher.role !== 'teacher') return res.status(404).json({ message: 'Teacher not found' });
+        await User.findByIdAndDelete(req.params.id);
+        await updateUsersCSV();
+        res.json({ message: 'Teacher deleted successfully' });
+    } catch (error) {
+        console.error('Delete teacher error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// GET /api/admin/pending-changes — List all pending profile change requests
+router.get('/pending-changes', protect, authorize('admin'), async (req, res) => {
+    try {
+        const users = await User.find({
+            $or: [
+                { 'pendingChanges.name': { $exists: true, $ne: null } },
+                { 'pendingChanges.password': { $exists: true, $ne: null } }
+            ]
+        }).select('name email role pendingChanges createdAt');
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// PUT /api/admin/approve-change/:id/:field — Approve a name or password change
+router.put('/approve-change/:id/:field', protect, authorize('admin'), async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const { field } = req.params;
+
+        if (field === 'name' && user.pendingChanges && user.pendingChanges.name) {
+            user.name = user.pendingChanges.name;
+            user.pendingChanges.name = undefined;
+            await user.save();
+            // Notify user
+            await Notification.create({
+                user: user._id,
+                title: 'Name Change Approved',
+                message: `Your name has been updated to "${user.name}".`,
+                type: 'system'
+            });
+            await updateUsersCSV();
+            return res.json({ message: 'Name change approved' });
+        }
+
+        if (field === 'password' && user.pendingChanges && user.pendingChanges.password) {
+            const plain = user.pendingChanges.password;
+            user.password = plain; // pre-save hook will hash it
+            user.plainPassword = plain;
+            user.pendingChanges.password = undefined;
+            await user.save();
+            // Notify user
+            await Notification.create({
+                user: user._id,
+                title: 'Password Change Approved',
+                message: 'Your password has been updated successfully.',
+                type: 'system'
+            });
+            await updateUsersCSV();
+            return res.json({ message: 'Password change approved' });
+        }
+
+        return res.status(400).json({ message: 'No pending change for this field' });
+    } catch (error) {
+        console.error('Approve change error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// PUT /api/admin/reject-change/:id/:field — Reject a name or password change
+router.put('/reject-change/:id/:field', protect, authorize('admin'), async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const { field } = req.params;
+        if (user.pendingChanges) {
+            user.pendingChanges[field] = undefined;
+            await user.save();
+        }
+        await Notification.create({
+            user: user._id,
+            title: `${field.charAt(0).toUpperCase() + field.slice(1)} Change Rejected`,
+            message: `Your ${field} change request has been rejected by the admin.`,
+            type: 'system'
+        });
+        res.json({ message: `${field} change rejected` });
+    } catch (error) {
+        console.error('Reject change error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 

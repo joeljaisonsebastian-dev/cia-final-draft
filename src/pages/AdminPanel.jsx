@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserPlus, Download, Trash2, Edit3, X, Check, LogOut, Shield, CheckCircle, XCircle, Menu, BarChart3, Settings, Bell } from 'lucide-react';
+import { Users, UserPlus, Download, Trash2, Edit3, X, Check, LogOut, Shield, CheckCircle, XCircle, Menu, BarChart3, Settings, Bell, Upload, BookOpen, AlertCircle } from 'lucide-react';
 import './AdminPanel.css';
 
 const AdminPanel = () => {
     const [students, setStudents] = useState([]);
+    const [teachers, setTeachers] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
+    const [pendingChanges, setPendingChanges] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
-    const [newStudent, setNewStudent] = useState({ name: '', email: '' });
+    const [addRole, setAddRole] = useState('student');
+    const [newUser, setNewUser] = useState({ name: '', email: '' });
     const [editingId, setEditingId] = useState(null);
     const [editData, setEditData] = useState({ name: '', email: '' });
     const [error, setError] = useState('');
@@ -29,9 +32,11 @@ const AdminPanel = () => {
 
     const fetchData = async () => {
         try {
-            const [studentsRes, pendingRes] = await Promise.all([
+            const [studentsRes, teachersRes, pendingRes, changesRes] = await Promise.all([
                 fetch('/api/admin/students', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/admin/pending', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch('/api/admin/teachers', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/pending', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/pending-changes', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
             if (studentsRes.status === 401 || studentsRes.status === 403) {
@@ -40,11 +45,10 @@ const AdminPanel = () => {
                 return;
             }
 
-            const studentsData = await studentsRes.json();
-            const pendingData = await pendingRes.json();
-
-            setStudents(studentsData);
-            setPendingUsers(pendingData);
+            setStudents(await studentsRes.json());
+            setTeachers(await teachersRes.json());
+            setPendingUsers(await pendingRes.json());
+            setPendingChanges(await changesRes.json());
         } catch (err) {
             setError('Failed to fetch data');
         } finally {
@@ -52,117 +56,141 @@ const AdminPanel = () => {
         }
     };
 
+    const showMsg = (type, text) => {
+        if (type === 'success') setSuccess(text);
+        else setError(text);
+        setSuccess(type === 'success' ? text : '');
+        setError(type === 'error' ? text : '');
+        setTimeout(() => { setSuccess(''); setError(''); }, 4000);
+    };
+
     const handleApprove = async (id) => {
-        setError('');
-        setSuccess('');
         try {
             const res = await fetch(`/api/admin/approve/${id}`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to approve user');
-            setSuccess('User approved successfully!');
+            showMsg('success', 'User approved successfully!');
             fetchData();
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
     const handleReject = async (id) => {
         if (!window.confirm('Delete this pending signup entirely?')) return;
-        setError('');
-        setSuccess('');
         try {
             const res = await fetch(`/api/admin/reject/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to reject user');
-            setSuccess('User rejected successfully!');
+            showMsg('success', 'User rejected successfully!');
             fetchData();
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
-    const handleAddStudent = async (e) => {
+    const handleAddUser = async (e) => {
         e.preventDefault();
-        setError('');
-        setSuccess('');
-
+        const endpoint = addRole === 'teacher' ? '/api/admin/teachers' : '/api/admin/students';
         try {
-            const res = await fetch('/api/admin/students', {
+            const res = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(newStudent)
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(newUser)
             });
-
             const data = await res.json();
-
             if (!res.ok) throw new Error(data.message);
-
-            setSuccess(`Student added! Generated password: ${data.generatedPassword}`);
-            setNewStudent({ name: '', email: '' });
+            showMsg('success', `${addRole.charAt(0).toUpperCase() + addRole.slice(1)} added! Generated password: ${data.generatedPassword}`);
+            setNewUser({ name: '', email: '' });
             setShowAddForm(false);
             fetchData();
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
     const handleDeleteStudent = async (id) => {
         if (!window.confirm('Are you sure you want to delete this student?')) return;
-        setError('');
-        setSuccess('');
-
         try {
             const res = await fetch(`/api/admin/students/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message);
-            }
-
-            setSuccess('Student deleted successfully');
+            if (!res.ok) { const data = await res.json(); throw new Error(data.message); }
+            showMsg('success', 'Student deleted successfully');
             fetchData();
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
-    const handleEditStart = (student) => {
-        setEditingId(student._id);
-        setEditData({ name: student.name, email: student.email });
+    const handleDeleteTeacher = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this teacher?')) return;
+        try {
+            const res = await fetch(`/api/admin/teachers/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) { const data = await res.json(); throw new Error(data.message); }
+            showMsg('success', 'Teacher deleted successfully');
+            fetchData();
+        } catch (err) {
+            showMsg('error', err.message);
+        }
     };
 
-    const handleEditSave = async (id) => {
-        setError('');
-        setSuccess('');
+    const handleEditStart = (user) => {
+        setEditingId(user._id);
+        setEditData({ name: user.name, email: user.email });
+    };
 
+    const handleEditSave = async (id, role) => {
+        const endpoint = role === 'teacher' ? `/api/admin/teachers/${id}` : `/api/admin/students/${id}`;
         try {
-            const res = await fetch(`/api/admin/students/${id}`, {
+            const res = await fetch(endpoint, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(editData)
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-
-            setSuccess('Student updated successfully');
+            showMsg('success', 'Updated successfully');
             setEditingId(null);
             fetchData();
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
+        }
+    };
+
+    const handleApproveChange = async (userId, field) => {
+        try {
+            const res = await fetch(`/api/admin/approve-change/${userId}/${field}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to approve change');
+            showMsg('success', `${field} change approved and applied!`);
+            fetchData();
+        } catch (err) {
+            showMsg('error', err.message);
+        }
+    };
+
+    const handleRejectChange = async (userId, field) => {
+        try {
+            const res = await fetch(`/api/admin/reject-change/${userId}/${field}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to reject change');
+            showMsg('success', `${field} change rejected`);
+            fetchData();
+        } catch (err) {
+            showMsg('error', err.message);
         }
     };
 
@@ -171,9 +199,7 @@ const AdminPanel = () => {
             const res = await fetch('/api/admin/students/csv', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-
             if (!res.ok) throw new Error('Failed to download CSV');
-
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -184,38 +210,31 @@ const AdminPanel = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
     const handleImportFile = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
-        setError('');
-        setSuccess('');
         setLoading(true);
-
         const formData = new FormData();
         formData.append('file', file);
-
         try {
             const res = await fetch('/api/admin/import', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-
-            setSuccess(data.message);
+            showMsg('success', data.message);
             fetchData();
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         } finally {
             setLoading(false);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         }
     };
 
@@ -224,9 +243,7 @@ const AdminPanel = () => {
             const res = await fetch(`/api/admin/export/${type}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-
             if (!res.ok) throw new Error('Failed to export data');
-
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -237,7 +254,7 @@ const AdminPanel = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
@@ -246,9 +263,7 @@ const AdminPanel = () => {
             const res = await fetch(`/api/admin/export-user/${id}/${type}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-
             if (!res.ok) throw new Error('Failed to export user data');
-
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -259,7 +274,7 @@ const AdminPanel = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
-            setError(err.message);
+            showMsg('error', err.message);
         }
     };
 
@@ -269,13 +284,63 @@ const AdminPanel = () => {
         navigate('/admin-login');
     };
 
-    const toggleMobileMenu = () => {
-        setMobileMenuOpen(!mobileMenuOpen);
-    };
+    const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
+    const totalPending = pendingUsers.length + pendingChanges.length;
+
+    const renderUserTable = (list, role) => (
+        <table className="students-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Date Added</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {list.map((u, idx) => (
+                    <tr key={u._id}>
+                        <td>{idx + 1}</td>
+                        <td>
+                            {editingId === u._id ? (
+                                <input type="text" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} className="edit-input" />
+                            ) : u.name}
+                        </td>
+                        <td>
+                            {editingId === u._id ? (
+                                <input type="email" value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} className="edit-input" />
+                            ) : u.email}
+                        </td>
+                        <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="actions-cell">
+                            {editingId === u._id ? (
+                                <>
+                                    <button className="icon-btn save" onClick={() => handleEditSave(u._id, role)} title="Save"><Check size={16} /></button>
+                                    <button className="icon-btn cancel" onClick={() => setEditingId(null)} title="Cancel"><X size={16} /></button>
+                                </>
+                            ) : (
+                                <>
+                                    <button className="icon-btn edit" onClick={() => handleEditStart(u)} title="Edit"><Edit3 size={16} /></button>
+                                    <div className="export-dropdown">
+                                        <button className="icon-btn" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }} title="Export User"><Download size={16} /></button>
+                                        <div className="dropdown-content">
+                                            <button onClick={() => handleExportUser(u._id, u.name, 'csv')}>As CSV</button>
+                                            <button onClick={() => handleExportUser(u._id, u.name, 'xlsx')}>As Excel</button>
+                                        </div>
+                                    </div>
+                                    <button className="icon-btn delete" onClick={() => role === 'teacher' ? handleDeleteTeacher(u._id) : handleDeleteStudent(u._id)} title="Delete"><Trash2 size={16} /></button>
+                                </>
+                            )}
+                        </td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
 
     return (
         <div className="admin-layout">
-            {/* Mobile Overlay */}
             {mobileMenuOpen && (
                 <div className="mobile-overlay" onClick={toggleMobileMenu}></div>
             )}
@@ -291,31 +356,23 @@ const AdminPanel = () => {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <button
-                        onClick={() => { setActiveTab('students'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'students' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('students'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'students' ? 'active' : ''}`}>
                         <Users size={20} />
                         <span>Students</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('teachers'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'teachers' ? 'active' : ''}`}
-                    >
-                        <Shield size={20} />
+                    <button onClick={() => { setActiveTab('teachers'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'teachers' ? 'active' : ''}`}>
+                        <BookOpen size={20} />
                         <span>Teachers</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('approvals'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'approvals' ? 'active' : ''}`}>
+                        <Shield size={20} />
+                        <span>Approvals {totalPending > 0 && <span className="nav-badge">{totalPending}</span>}</span>
+                    </button>
+                    <button onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}>
                         <BarChart3 size={20} />
                         <span>Analytics</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
                         <Settings size={20} />
                         <span>Settings</span>
                     </button>
@@ -332,17 +389,17 @@ const AdminPanel = () => {
             {/* Main Content */}
             <main className="admin-main">
                 <header className="admin-header">
-                    <div className="mobile-logo-text admin-logo">
-                        Admin <span>Panel</span>
-                    </div>
+                    <div className="mobile-logo-text admin-logo">Admin <span>Panel</span></div>
                     <h1 className="desktop-header-title">
-                        {activeTab === 'students' ? 'User Management' :
-                            activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + ' Management'}
+                        {activeTab === 'students' ? 'Student Management' :
+                         activeTab === 'teachers' ? 'Teacher Management' :
+                         activeTab === 'approvals' ? 'Approvals & Requests' :
+                         activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + ' Management'}
                     </h1>
                     <div className="header-actions">
                         <label className="btn btn-secondary desktop-only" style={{ cursor: 'pointer' }}>
                             <Upload size={18} /> Import
-                            <input type="file" accept=".csv, .xlsx" onChange={handleImportFile} style={{ display: 'none' }} />
+                            <input type="file" accept=".csv,.xlsx" onChange={handleImportFile} style={{ display: 'none' }} />
                         </label>
                         <div className="export-dropdown desktop-only">
                             <button className="btn btn-secondary">
@@ -353,16 +410,15 @@ const AdminPanel = () => {
                                 <button onClick={() => handleExportData('xlsx')}>As Excel</button>
                             </div>
                         </div>
-                        <button className="btn btn-primary desktop-only" onClick={() => setShowAddForm(!showAddForm)}>
-                            <UserPlus size={18} /> Add Student
+                        <button className="btn btn-primary desktop-only" onClick={() => { setShowAddForm(!showAddForm); setAddRole(activeTab === 'teachers' ? 'teacher' : 'student'); }}>
+                            <Users size={18} /> Add {activeTab === 'teachers' ? 'Teacher' : 'Student'}
                         </button>
-                        
-                        {/* Mobile & Desktop Actions */}
-                        <button className="icon-btn bell-btn" style={{ position: 'relative', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.6)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+
+                        <button className="icon-btn bell-btn" style={{ position: 'relative', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                             <Bell size={20} />
-                            <span style={{ position: 'absolute', top: '-2px', right: '-2px', background: 'linear-gradient(135deg, #f59e0b, #ef4444)', color: 'white', fontSize: '0.65rem', fontWeight: 'bold', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a1a' }}>0</span>
+                            {totalPending > 0 && <span style={{ position: 'absolute', top: '-2px', right: '-2px', background: 'linear-gradient(135deg,#f59e0b,#ef4444)', color: 'white', fontSize: '0.65rem', fontWeight: 'bold', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a1a' }}>{totalPending}</span>}
                         </button>
-                        
+
                         <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
                             <Menu size={24} />
                         </button>
@@ -372,39 +428,71 @@ const AdminPanel = () => {
                 {error && <div className="alert alert-error">{error}</div>}
                 {success && <div className="alert alert-success">{success}</div>}
 
+                {/* Add User Form */}
+                {showAddForm && (
+                    <div className="add-form-card">
+                        <h3>Add New {addRole.charAt(0).toUpperCase() + addRole.slice(1)}</h3>
+                        <form onSubmit={handleAddUser}>
+                            <div className="form-row">
+                                <select value={addRole} onChange={e => setAddRole(e.target.value)} className="role-select">
+                                    <option value="student">Student</option>
+                                    <option value="teacher">Teacher</option>
+                                </select>
+                                <input type="text" placeholder="Full name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} required />
+                                <input type="email" placeholder="Email address" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
+                                <button type="submit" className="btn btn-primary">Add</button>
+                                <button type="button" className="btn btn-ghost" onClick={() => setShowAddForm(false)}>Cancel</button>
+                            </div>
+                        </form>
+                        <p className="form-hint">A password will be auto-generated and saved to the CSV.</p>
+                    </div>
+                )}
+
                 {activeTab === 'students' ? (
                     <>
-                        {/* Pending Approvals Table */}
+                        <div className="table-card">
+                            <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Active Students ({students.length})</h3>
+                            </div>
+                            {loading ? (
+                                <div className="loading-state">Loading students...</div>
+                            ) : students.length === 0 ? (
+                                <div className="empty-state"><Users size={48} /><p>No active students yet.</p></div>
+                            ) : renderUserTable(students, 'student')}
+                        </div>
+                    </>
+                ) : activeTab === 'teachers' ? (
+                    <div className="table-card">
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Active Teachers ({teachers.length})</h3>
+                        </div>
+                        {loading ? (
+                            <div className="loading-state">Loading teachers...</div>
+                        ) : teachers.length === 0 ? (
+                            <div className="empty-state"><BookOpen size={48} /><p>No teachers found.</p></div>
+                        ) : renderUserTable(teachers, 'teacher')}
+                    </div>
+                ) : activeTab === 'approvals' ? (
+                    <div>
+                        {/* Pending Signups */}
                         {pendingUsers.length > 0 && (
-                            <div className="table-card" style={{ marginBottom: "2rem", border: "1px solid #f59e0b" }}>
-                                <div style={{ padding: "16px 20px", background: "rgba(245, 158, 11, 0.1)", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div className="table-card" style={{ marginBottom: '2rem', border: '1px solid #f59e0b' }}>
+                                <div style={{ padding: '16px 20px', background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Shield size={20} color="#f59e0b" />
-                                    <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#f59e0b" }}>Pending Approvals (Signups)</h3>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#f59e0b' }}>Pending Signups ({pendingUsers.length})</h3>
                                 </div>
                                 <table className="students-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Role</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Date Applied</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
+                                    <thead><tr><th>Role</th><th>Name</th><th>Email</th><th>Date Applied</th><th>Actions</th></tr></thead>
                                     <tbody>
-                                        {pendingUsers.map(user => (
-                                            <tr key={user._id}>
-                                                <td style={{ textTransform: 'capitalize' }}>{user.role}</td>
-                                                <td>{user.name}</td>
-                                                <td>{user.email}</td>
-                                                <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                                        {pendingUsers.map(u => (
+                                            <tr key={u._id}>
+                                                <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
+                                                <td>{u.name}</td>
+                                                <td>{u.email}</td>
+                                                <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                                                 <td className="actions-cell">
-                                                    <button className="icon-btn save" onClick={() => handleApprove(user._id)} title="Approve">
-                                                        <CheckCircle size={16} />
-                                                    </button>
-                                                    <button className="icon-btn delete" onClick={() => handleReject(user._id)} title="Reject">
-                                                        <XCircle size={16} />
-                                                    </button>
+                                                    <button className="icon-btn save" onClick={() => handleApprove(u._id)} title="Approve"><CheckCircle size={16} /></button>
+                                                    <button className="icon-btn delete" onClick={() => handleReject(u._id)} title="Reject"><XCircle size={16} /></button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -413,115 +501,46 @@ const AdminPanel = () => {
                             </div>
                         )}
 
-                        {/* Add Student Form */}
-                        {showAddForm && (
-                            <div className="add-form-card">
-                                <h3>Add New Student Directly (Active by default)</h3>
-                                <form onSubmit={handleAddStudent}>
-                                    <div className="form-row">
-                                        <input
-                                            type="text"
-                                            placeholder="Student name"
-                                            value={newStudent.name}
-                                            onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                                            required
-                                        />
-                                        <input
-                                            type="email"
-                                            placeholder="Student email"
-                                            value={newStudent.email}
-                                            onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                                            required
-                                        />
-                                        <button type="submit" className="btn btn-primary">Add</button>
-                                        <button type="button" className="btn btn-ghost" onClick={() => setShowAddForm(false)}>
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </form>
-                                <p className="form-hint">A password will be auto-generated for the student and saved to the CSV.</p>
+                        {/* Pending Profile Changes */}
+                        <div className="table-card" style={{ border: pendingChanges.length > 0 ? '1px solid #6366f1' : undefined }}>
+                            <div style={{ padding: '16px 20px', background: pendingChanges.length > 0 ? 'rgba(99,102,241,0.1)' : undefined, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <AlertCircle size={20} color={pendingChanges.length > 0 ? '#6366f1' : 'rgba(255,255,255,0.5)'} />
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: pendingChanges.length > 0 ? '#6366f1' : undefined }}>Pending Profile Change Requests ({pendingChanges.length})</h3>
                             </div>
-                        )}
-
-                        {/* Active Students Table */}
-                        <div className="table-card">
-                            <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                                <h3 style={{ margin: 0, fontSize: "1.1rem" }}>Active Students</h3>
-                            </div>
-                            {loading ? (
-                                <div className="loading-state">Loading actual students...</div>
-                            ) : students.length === 0 ? (
-                                <div className="empty-state">
-                                    <Users size={48} />
-                                    <p>No active students yet.</p>
+                            {pendingChanges.length === 0 ? (
+                                <div className="empty-state" style={{ padding: '30px' }}>
+                                    <p>No pending profile changes.</p>
                                 </div>
                             ) : (
                                 <table className="students-table">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Name</th>
-                                            <th>Email</th>
-                                            <th>Date Added</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
+                                    <thead><tr><th>Role</th><th>Name</th><th>Email</th><th>Requested Name</th><th>Requested Password</th><th>Actions</th></tr></thead>
                                     <tbody>
-                                        {students.map((student, index) => (
-                                            <tr key={student._id}>
-                                                <td>{index + 1}</td>
+                                        {pendingChanges.map(u => (
+                                            <tr key={u._id}>
+                                                <td style={{ textTransform: 'capitalize' }}>{u.role}</td>
+                                                <td>{u.name}</td>
+                                                <td>{u.email}</td>
                                                 <td>
-                                                    {editingId === student._id ? (
-                                                        <input
-                                                            type="text"
-                                                            value={editData.name}
-                                                            onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                                                            className="edit-input"
-                                                        />
-                                                    ) : (
-                                                        student.name
-                                                    )}
+                                                    {u.pendingChanges?.name ? (
+                                                        <span style={{ color: '#f59e0b' }}>{u.pendingChanges.name}</span>
+                                                    ) : <span style={{ opacity: 0.4 }}>—</span>}
                                                 </td>
                                                 <td>
-                                                    {editingId === student._id ? (
-                                                        <input
-                                                            type="email"
-                                                            value={editData.email}
-                                                            onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                                                            className="edit-input"
-                                                        />
-                                                    ) : (
-                                                        student.email
-                                                    )}
+                                                    {u.pendingChanges?.password ? (
+                                                        <span style={{ color: '#f59e0b' }}>••••••••</span>
+                                                    ) : <span style={{ opacity: 0.4 }}>—</span>}
                                                 </td>
-                                                <td>{new Date(student.createdAt).toLocaleDateString()}</td>
-                                                <td className="actions-cell">
-                                                    {editingId === student._id ? (
+                                                <td className="actions-cell" style={{ flexWrap: 'wrap', gap: '4px' }}>
+                                                    {u.pendingChanges?.name && (
                                                         <>
-                                                            <button className="icon-btn save" onClick={() => handleEditSave(student._id)} title="Save">
-                                                                <Check size={16} />
-                                                            </button>
-                                                            <button className="icon-btn cancel" onClick={() => setEditingId(null)} title="Cancel">
-                                                                <X size={16} />
-                                                            </button>
+                                                            <button className="btn-small btn-publish" onClick={() => handleApproveChange(u._id, 'name')} title="Approve name change">✓ Name</button>
+                                                            <button className="btn-small" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }} onClick={() => handleRejectChange(u._id, 'name')} title="Reject name change">✗ Name</button>
                                                         </>
-                                                    ) : (
+                                                    )}
+                                                    {u.pendingChanges?.password && (
                                                         <>
-                                                            <button className="icon-btn edit" onClick={() => handleEditStart(student)} title="Edit">
-                                                                <Edit3 size={16} />
-                                                            </button>
-                                                            <div className="export-dropdown">
-                                                                <button className="icon-btn" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }} title="Export User">
-                                                                    <Download size={16} />
-                                                                </button>
-                                                                <div className="dropdown-content">
-                                                                    <button onClick={() => handleExportUser(student._id, student.name, 'csv')}>As CSV</button>
-                                                                    <button onClick={() => handleExportUser(student._id, student.name, 'xlsx')}>As Excel</button>
-                                                                </div>
-                                                            </div>
-                                                            <button className="icon-btn delete" onClick={() => handleDeleteStudent(student._id)} title="Delete">
-                                                                <Trash2 size={16} />
-                                                            </button>
+                                                            <button className="btn-small btn-publish" onClick={() => handleApproveChange(u._id, 'password')} title="Approve password change">✓ Pass</button>
+                                                            <button className="btn-small" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }} onClick={() => handleRejectChange(u._id, 'password')} title="Reject password change">✗ Pass</button>
                                                         </>
                                                     )}
                                                 </td>
@@ -531,15 +550,34 @@ const AdminPanel = () => {
                                 </table>
                             )}
                         </div>
-                    </>
+                    </div>
+                ) : activeTab === 'analytics' ? (
+                    <div className="analytics-summary-cards">
+                        <div className="sum-card-admin">
+                            <div className="sum-val">{students.length}</div>
+                            <div className="sum-label">Total Students</div>
+                        </div>
+                        <div className="sum-card-admin">
+                            <div className="sum-val">{teachers.length}</div>
+                            <div className="sum-label">Total Teachers</div>
+                        </div>
+                        <div className="sum-card-admin">
+                            <div className="sum-val">{pendingUsers.length}</div>
+                            <div className="sum-label">Pending Signups</div>
+                        </div>
+                        <div className="sum-card-admin">
+                            <div className="sum-val">{pendingChanges.length}</div>
+                            <div className="sum-label">Pending Changes</div>
+                        </div>
+                    </div>
                 ) : (
                     <div className="empty-state" style={{ padding: '60px', opacity: 0.6 }}>
-                        <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Management</h2>
-                        <p>This section is currently under development. Please check back later.</p>
+                        <h2>Settings</h2>
+                        <p>Admin settings coming soon.</p>
                     </div>
                 )}
-            </main >
-        </div >
+            </main>
+        </div>
     );
 };
 

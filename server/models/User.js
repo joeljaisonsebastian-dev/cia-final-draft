@@ -45,6 +45,15 @@ const userSchema = new mongoose.Schema({
         webDev: { marks: Number, attendance: Number },
         networks: { marks: Number, attendance: Number }
     },
+    pendingChanges: {
+        name: { type: String },
+        password: { type: String }
+    },
+    theme: {
+        type: String,
+        enum: ['light', 'dark'],
+        default: 'dark'
+    },
     createdAt: {
         type: Date,
         default: Date.now

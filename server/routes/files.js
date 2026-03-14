@@ -3,6 +3,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const File = require('../models/File');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -44,6 +46,22 @@ router.post('/upload', protect, authorize('teacher'), upload.single('file'), asy
             mimetype: req.file.mimetype,
             uploadedBy: req.user._id
         });
+
+        // Notify all active students
+        try {
+            const uploader = req.user.name || 'Teacher';
+            const students = await User.find({ role: 'student', status: 'active' });
+            const notifications = students.map(s => ({
+                user: s._id,
+                title: 'New File Shared',
+                message: `${uploader} uploaded "${req.file.originalname}" — available in your dashboard.`,
+                type: 'file',
+                relatedId: fileDoc._id
+            }));
+            if (notifications.length) await Notification.insertMany(notifications);
+        } catch (notifErr) {
+            console.error('Failed to create file notifications:', notifErr);
+        }
 
         res.status(201).json(fileDoc);
     } catch (error) {

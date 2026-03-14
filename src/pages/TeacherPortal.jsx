@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './TeacherPortal.css';
-import { BookOpen, Users, BarChart3, Settings, Bell, Search, Upload, Trash2, FileText, LogOut, Menu, X, FileQuestion, Plus, Clock, Play } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Settings, Bell, Search, Upload, Trash2, FileText, LogOut, Menu, X, FileQuestion, Plus, Clock, Play, Sun, Moon, User, Lock, CheckCircle, AlertCircle } from 'lucide-react';
 import CreateAssessment from '../components/CreateAssessment';
 
 const TeacherPortal = () => {
@@ -17,6 +17,12 @@ const TeacherPortal = () => {
     const [students, setStudents] = useState([]);
     const [loadingStudents, setLoadingStudents] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifPanel, setShowNotifPanel] = useState(false);
+    const [settingsMsg, setSettingsMsg] = useState({ type: '', text: '' });
+    const [newName, setNewName] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [theme, setTheme] = useState('dark');
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
@@ -31,7 +37,34 @@ const TeacherPortal = () => {
         fetchFiles();
         fetchAssessments();
         fetchStudents();
+        fetchNotifications();
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        setTheme(savedTheme);
+        document.body.setAttribute('data-theme', savedTheme);
     }, []);
+
+    const fetchNotifications = async () => {
+        try {
+            const res = await fetch('/api/user/notifications', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) setNotifications(data);
+        } catch (err) {
+            console.error('Failed to fetch notifications');
+        }
+    };
+
+    const markAllRead = async () => {
+        const unread = notifications.filter(n => !n.isRead);
+        await Promise.all(unread.map(n =>
+            fetch(`/api/user/notifications/${n._id}/read`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+        ));
+        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    };
 
     const fetchStudents = async () => {
         setLoadingStudents(true);
@@ -82,8 +115,6 @@ const TeacherPortal = () => {
 
     const handleUpload = async (fileToUpload) => {
         if (!fileToUpload) return;
-
-        // Check 50 MB limit
         if (fileToUpload.size > 50 * 1024 * 1024) {
             setError('File size exceeds 50 MB limit');
             return;
@@ -102,11 +133,9 @@ const TeacherPortal = () => {
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData
             });
-
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-
-            setSuccess(`"${fileToUpload.name}" uploaded successfully!`);
+            setSuccess(`"${fileToUpload.name}" uploaded & students notified!`);
             fetchFiles();
         } catch (err) {
             setError(err.message);
@@ -119,18 +148,15 @@ const TeacherPortal = () => {
         if (!window.confirm('Delete this file?')) return;
         setError('');
         setSuccess('');
-
         try {
             const res = await fetch(`/api/files/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-
             if (!res.ok) {
                 const data = await res.json();
                 throw new Error(data.message);
             }
-
             setSuccess('File deleted');
             fetchFiles();
         } catch (err) {
@@ -141,11 +167,8 @@ const TeacherPortal = () => {
     const handleDrag = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true);
-        } else if (e.type === 'dragleave') {
-            setDragActive(false);
-        }
+        if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+        else if (e.type === 'dragleave') setDragActive(false);
     };
 
     const handleDrop = (e) => {
@@ -179,7 +202,7 @@ const TeacherPortal = () => {
         try {
             const res = await fetch('/api/assessments', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
@@ -201,7 +224,7 @@ const TeacherPortal = () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error('Failed to publish');
-            setSuccess('Assessment published!');
+            setSuccess('Assessment published & students notified!');
             fetchAssessments();
         } catch (err) {
             setError(err.message);
@@ -222,13 +245,87 @@ const TeacherPortal = () => {
         }
     };
 
-    const toggleMobileMenu = () => {
-        setMobileMenuOpen(!mobileMenuOpen);
+    const handleDeleteAssessment = async (id) => {
+        if (!window.confirm('Delete this assessment?')) return;
+        try {
+            const res = await fetch(`/api/assessments/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to delete assessment');
+            setSuccess('Assessment deleted');
+            fetchAssessments();
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleRequestName = async (e) => {
+        e.preventDefault();
+        setSettingsMsg({ type: '', text: '' });
+        try {
+            const res = await fetch('/api/user/request-name', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ newName })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSettingsMsg({ type: 'success', text: 'Name change request submitted! Awaiting admin approval.' });
+                setNewName('');
+            } else {
+                setSettingsMsg({ type: 'error', text: data.message });
+            }
+        } catch {
+            setSettingsMsg({ type: 'error', text: 'Request failed' });
+        }
+    };
+
+    const handleRequestPassword = async (e) => {
+        e.preventDefault();
+        setSettingsMsg({ type: '', text: '' });
+        try {
+            const res = await fetch('/api/user/request-password', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ newPassword })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSettingsMsg({ type: 'success', text: 'Password change request submitted! Awaiting admin approval.' });
+                setNewPassword('');
+            } else {
+                setSettingsMsg({ type: 'error', text: data.message });
+            }
+        } catch {
+            setSettingsMsg({ type: 'error', text: 'Request failed' });
+        }
+    };
+
+    const handleToggleTheme = async () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        try {
+            await fetch('/api/user/theme', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ theme: newTheme })
+            });
+        } catch {}
+    };
+
+    const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
+    const unreadCount = notifications.filter(n => !n.isRead).length;
+    const getNotifIcon = (type) => {
+        if (type === 'submission') return '✅';
+        if (type === 'system') return '🔔';
+        return '📋';
     };
 
     return (
         <div className="portal-layout">
-            {/* Mobile Overlay */}
             {mobileMenuOpen && (
                 <div className="mobile-overlay" onClick={toggleMobileMenu}></div>
             )}
@@ -243,38 +340,23 @@ const TeacherPortal = () => {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <button
-                        onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}>
                         <BookOpen size={20} />
                         <span>Dashboard</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('classes'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'classes' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('classes'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'classes' ? 'active' : ''}`}>
                         <Users size={20} />
                         <span>My Classes</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}>
                         <BarChart3 size={20} />
                         <span>Analytics</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('assessments'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'assessments' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('assessments'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'assessments' ? 'active' : ''}`}>
                         <FileQuestion size={20} />
                         <span>Assessments</span>
                     </button>
-                    <button
-                        onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
-                        className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-                    >
+                    <button onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
                         <Settings size={20} />
                         <span>Settings</span>
                     </button>
@@ -297,18 +379,45 @@ const TeacherPortal = () => {
             {/* Main Content */}
             <main className="portal-main">
                 <header className="portal-header">
-                    <div className="mobile-logo-text">
-                        CIA <span>Portal</span>
-                    </div>
+                    <div className="mobile-logo-text">CIA <span>Portal</span></div>
                     <div className="search-bar">
                         <Search size={20} className="search-icon" />
                         <input type="text" placeholder="Search students, assignments..." />
                     </div>
                     <div className="header-actions">
-                        <button className="icon-btn">
-                            <Bell size={20} />
-                            <span className="notification-badge">{files.length}</span>
-                        </button>
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                className="icon-btn"
+                                id="teacher-notif-btn"
+                                onClick={() => { setShowNotifPanel(!showNotifPanel); if (!showNotifPanel) { markAllRead(); fetchNotifications(); } }}
+                            >
+                                <Bell size={20} />
+                                {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
+                            </button>
+
+                            {showNotifPanel && (
+                                <div className="notif-panel" id="teacher-notif-panel">
+                                    <div className="notif-panel-header">
+                                        <span>Notifications</span>
+                                        <button onClick={() => setShowNotifPanel(false)}><X size={16} /></button>
+                                    </div>
+                                    <div className="notif-list">
+                                        {notifications.length === 0 ? (
+                                            <div className="notif-empty">No notifications yet</div>
+                                        ) : notifications.map(n => (
+                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}>
+                                                <span className="notif-icon">{getNotifIcon(n.type)}</span>
+                                                <div className="notif-body">
+                                                    <p className="notif-title">{n.title}</p>
+                                                    <p className="notif-msg">{n.message}</p>
+                                                    <span className="notif-time">{new Date(n.createdAt).toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         <button className="mobile-menu-btn" onClick={toggleMobileMenu}>
                             <Menu size={24} />
                         </button>
@@ -346,7 +455,7 @@ const TeacherPortal = () => {
                                     {assessments.map((asmt) => (
                                         <div key={asmt._id} className="assessment-card">
                                             <div className="asmt-header">
-                                                <span className={`asmt-status ${asmt.status}`}>{asmt.status}</span>
+                                                <span className={`asmt-status ${asmt.status}`}>{asmt.status.replace('_', ' ')}</span>
                                                 <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
                                             </div>
                                             <h3>{asmt.title}</h3>
@@ -359,6 +468,10 @@ const TeacherPortal = () => {
                                                 <div className="asmt-stat">
                                                     <Clock size={16} />
                                                     <span>{asmt.duration} Mins</span>
+                                                </div>
+                                                <div className="asmt-stat">
+                                                    <Users size={16} />
+                                                    <span>{asmt.submissions?.length || 0} Submissions</span>
                                                 </div>
                                             </div>
                                             <div className="asmt-footer">
@@ -375,6 +488,13 @@ const TeacherPortal = () => {
                                                         </button>
                                                     )}
                                                     <button className="btn-small btn-view">View Results</button>
+                                                    <button
+                                                        className="btn-small btn-delete-asmt"
+                                                        onClick={() => handleDeleteAssessment(asmt._id)}
+                                                        title="Delete Assessment"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
@@ -383,15 +503,122 @@ const TeacherPortal = () => {
                             )}
 
                             {showCreateModal && (
-                                <CreateAssessment 
-                                    onSave={handleSaveAssessment} 
-                                    onCancel={() => setShowCreateModal(false)} 
+                                <CreateAssessment
+                                    onSave={handleSaveAssessment}
+                                    onCancel={() => setShowCreateModal(false)}
                                 />
                             )}
                         </div>
+                    ) : activeTab === 'settings' ? (
+                        <div className="settings-section">
+                            <div className="section-header">
+                                <div>
+                                    <h1>Settings</h1>
+                                    <p>Manage your profile and preferences.</p>
+                                </div>
+                            </div>
+
+                            {settingsMsg.text && (
+                                <div className={`alert ${settingsMsg.type === 'success' ? 'alert-success' : 'alert-error'}`}>
+                                    {settingsMsg.text}
+                                </div>
+                            )}
+
+                            <div className="settings-grid">
+                                <div className="settings-card">
+                                    <div className="settings-card-header">
+                                        <div className="settings-icon-wrap">
+                                            {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
+                                        </div>
+                                        <div>
+                                            <h3>Interface Theme</h3>
+                                            <p>Switch between dark and light mode</p>
+                                        </div>
+                                    </div>
+                                    <div className="theme-toggle-row">
+                                        <span>{theme === 'dark' ? '🌙 Dark Mode' : '☀️ Light Mode'}</span>
+                                        <button
+                                            className={`toggle-switch ${theme === 'dark' ? 'on' : 'off'}`}
+                                            onClick={handleToggleTheme}
+                                            id="teacher-theme-toggle"
+                                        >
+                                            <span className="toggle-thumb"></span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="settings-card">
+                                    <div className="settings-card-header">
+                                        <div className="settings-icon-wrap"><User size={20} /></div>
+                                        <div>
+                                            <h3>Change Display Name</h3>
+                                            <p>Request a name change (requires admin approval)</p>
+                                        </div>
+                                    </div>
+                                    <form onSubmit={handleRequestName} className="settings-form">
+                                        <input
+                                            type="text"
+                                            placeholder="Enter new name"
+                                            value={newName}
+                                            onChange={e => setNewName(e.target.value)}
+                                            required
+                                        />
+                                        <button type="submit" className="btn btn-primary">
+                                            <CheckCircle size={16} /> Submit Request
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="settings-card">
+                                    <div className="settings-card-header">
+                                        <div className="settings-icon-wrap"><Lock size={20} /></div>
+                                        <div>
+                                            <h3>Change Password</h3>
+                                            <p>Request a password change (requires admin approval)</p>
+                                        </div>
+                                    </div>
+                                    <form onSubmit={handleRequestPassword} className="settings-form">
+                                        <input
+                                            type="password"
+                                            placeholder="Enter new password (min 4 chars)"
+                                            value={newPassword}
+                                            onChange={e => setNewPassword(e.target.value)}
+                                            required
+                                            minLength={4}
+                                        />
+                                        <button type="submit" className="btn btn-primary">
+                                            <CheckCircle size={16} /> Submit Request
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="settings-card">
+                                    <div className="settings-card-header">
+                                        <div className="settings-icon-wrap info"><AlertCircle size={20} /></div>
+                                        <div>
+                                            <h3>Account Information</h3>
+                                            <p>Your current profile details</p>
+                                        </div>
+                                    </div>
+                                    <div className="account-info-rows">
+                                        <div className="info-row">
+                                            <span className="info-label">Name</span>
+                                            <span className="info-value">{user.name || 'N/A'}</span>
+                                        </div>
+                                        <div className="info-row">
+                                            <span className="info-label">Email</span>
+                                            <span className="info-value">{user.email || 'N/A'}</span>
+                                        </div>
+                                        <div className="info-row">
+                                            <span className="info-label">Role</span>
+                                            <span className="info-value" style={{ textTransform: 'capitalize' }}>{user.role || 'Teacher'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     ) : activeTab === 'dashboard' ? (
                         <>
-                            {/* ... existing dashboard content ... */}
                             <div className="dashboard-header">
                                 <h1>Welcome back, {user.name || 'Teacher'}!</h1>
                                 <p>Upload files for your students and manage your resources.</p>
@@ -408,15 +635,17 @@ const TeacherPortal = () => {
                                 onDragOver={handleDrag}
                                 onDrop={handleDrop}
                                 onClick={() => fileInputRef.current?.click()}
+                                id="upload-zone"
                             >
                                 <Upload size={40} />
                                 <h3>{uploading ? 'Uploading...' : 'Drop a file here or click to browse'}</h3>
-                                <p>Max file size: 50 MB</p>
+                                <p>Supports images, PDFs, DOCX, PPT, Excel • Max 50 MB</p>
                                 <input
                                     type="file"
                                     ref={fileInputRef}
                                     onChange={handleFileInput}
                                     style={{ display: 'none' }}
+                                    accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
                                 />
                             </div>
 
@@ -429,6 +658,10 @@ const TeacherPortal = () => {
                                 <div className="stat-card">
                                     <h3>Active Assessments</h3>
                                     <div className="stat-value">{assessments.filter(a => a.status === 'published').length}</div>
+                                </div>
+                                <div className="stat-card">
+                                    <h3>Total Students</h3>
+                                    <div className="stat-value">{students.length}</div>
                                 </div>
                             </div>
 
@@ -467,7 +700,7 @@ const TeacherPortal = () => {
                                 </div>
                             </div>
                         </>
-                     ) : activeTab === 'classes' ? (
+                    ) : activeTab === 'classes' ? (
                         <div className="classes-section">
                             <div className="section-header">
                                 <div>
@@ -498,8 +731,8 @@ const TeacherPortal = () => {
                                         <tbody>
                                             {students.map(student => {
                                                 const att = student.academicData ? Math.round((
-                                                    student.academicData.python.attendance + 
-                                                    student.academicData.dataStructures.attendance + 
+                                                    student.academicData.python.attendance +
+                                                    student.academicData.dataStructures.attendance +
                                                     student.academicData.dbms.attendance +
                                                     student.academicData.webDev.attendance +
                                                     student.academicData.networks.attendance
@@ -545,7 +778,6 @@ const TeacherPortal = () => {
                                     const avgMarks = students.length > 0 ? Math.round(students.reduce((acc, s) => acc + (s.academicData?.[subject]?.marks || 0), 0) / students.length) : 0;
                                     const avgAtt = students.length > 0 ? Math.round(students.reduce((acc, s) => acc + (s.academicData?.[subject]?.attendance || 0), 0) / students.length) : 0;
                                     const subjectLabel = subject.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                                    
                                     return (
                                         <div key={subject} className="analytics-card">
                                             <h3>{subjectLabel}</h3>
@@ -582,8 +814,8 @@ const TeacherPortal = () => {
                                     </div>
                                     <div className="sum-card">
                                         <div className="val">{Math.round(students.reduce((acc, s) => {
-                                             const att = s.academicData ? (s.academicData.python.attendance + s.academicData.dataStructures.attendance + s.academicData.dbms.attendance + s.academicData.webDev.attendance + s.academicData.networks.attendance) / 5 : 0;
-                                             return acc + att;
+                                            const att = s.academicData ? (s.academicData.python.attendance + s.academicData.dataStructures.attendance + s.academicData.dbms.attendance + s.academicData.webDev.attendance + s.academicData.networks.attendance) / 5 : 0;
+                                            return acc + att;
                                         }, 0) / (students.length || 1))}%</div>
                                         <label>Class Attendance Avg</label>
                                     </div>
