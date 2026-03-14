@@ -261,4 +261,26 @@ router.delete('/:id', auth, async (req, res) => {
     }
 });
 
+// Notify teacher of a tab switch during an assessment (Student)
+router.post('/tab-switch/:id', auth, async (req, res) => {
+    try {
+        const assessment = await Assessment.findById(req.params.id).populate('teacher', 'name');
+        if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
+
+        const student = await User.findById(req.user.id).select('name');
+
+        await Notification.create({
+            user: assessment.teacher._id,
+            title: '⚠️ Tab Switch Detected',
+            message: `${student?.name || 'A student'} switched tabs during "${assessment.title}".`,
+            type: 'tab-switch',
+            relatedId: assessment._id
+        });
+
+        res.json({ message: 'Notified' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 module.exports = router;

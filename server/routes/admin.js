@@ -473,6 +473,23 @@ router.delete('/teachers/:id', protect, authorize('admin'), async (req, res) => 
     }
 });
 
+// PUT /api/admin/teachers/:id — Update teacher info
+router.put('/teachers/:id', protect, authorize('admin'), async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        const teacher = await User.findById(req.params.id);
+        if (!teacher || teacher.role !== 'teacher') return res.status(404).json({ message: 'Teacher not found' });
+        if (name) teacher.name = name;
+        if (email) teacher.email = email;
+        await teacher.save();
+        await updateUsersCSV();
+        res.json({ _id: teacher._id, name: teacher.name, email: teacher.email, role: teacher.role });
+    } catch (error) {
+        console.error('Update teacher error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // GET /api/admin/pending-changes — List all pending profile change requests
 router.get('/pending-changes', protect, authorize('admin'), async (req, res) => {
     try {

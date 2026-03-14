@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
 import Hero from './components/Hero';
 import Features from './components/Features';
 import Roles from './components/Roles';
@@ -27,6 +28,12 @@ const LandingPage = () => {
 };
 
 function App() {
+    // Apply saved theme on every page load
+    useEffect(() => {
+        const saved = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', saved);
+    }, []);
+
     return (
         <Router>
             <Routes>

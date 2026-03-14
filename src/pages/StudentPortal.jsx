@@ -19,6 +19,9 @@ const StudentPortal = () => {
     const [newName, setNewName] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [theme, setTheme] = useState('dark');
+    const [notes, setNotes] = useState([]);
+    const [loadingNotes, setLoadingNotes] = useState(false);
+    const [proposeUser, setProposeUser] = useState({ name: '', email: '', password: '', role: 'student' });
     const navigate = useNavigate();
 
     const token = localStorage.getItem('token');
@@ -32,11 +35,27 @@ const StudentPortal = () => {
         fetchFiles();
         fetchAssessments();
         fetchNotifications();
+        fetchNotes();
         // Apply stored theme
         const savedTheme = localStorage.getItem('theme') || 'dark';
         setTheme(savedTheme);
         document.body.setAttribute('data-theme', savedTheme);
     }, []);
+
+    const fetchNotes = async () => {
+        setLoadingNotes(true);
+        try {
+            const res = await fetch('/api/student/notes', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) setNotes(data);
+        } catch (err) {
+            console.error('Failed to load notes');
+        } finally {
+            setLoadingNotes(false);
+        }
+    };
 
     const fetchNotifications = async () => {
         try {
@@ -214,6 +233,25 @@ const StudentPortal = () => {
         } catch (err) {
             setSettingsMsg({ type: 'error', text: 'Request failed' });
         }
+    const handleProposeUser = async (e) => {
+        e.preventDefault();
+        setSettingsMsg({ type: '', text: '' });
+        try {
+            const res = await fetch('/api/auth/add-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(proposeUser)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSettingsMsg({ type: 'success', text: 'User proposal sent to Admin! Awaiting approval.' });
+                setProposeUser({ name: '', email: '', password: '', role: 'student' });
+            } else {
+                setSettingsMsg({ type: 'error', text: data.message });
+            }
+        } catch (err) {
+            setSettingsMsg({ type: 'error', text: 'Request failed' });
+        }
     };
 
     const handleToggleTheme = async () => {
@@ -238,6 +276,7 @@ const StudentPortal = () => {
         if (type === 'assessment') return '📝';
         if (type === 'file') return '📁';
         if (type === 'submission') return '✅';
+        if (type === 'note') return '📜';
         return '🔔';
     };
 
@@ -263,6 +302,10 @@ const StudentPortal = () => {
                     <button onClick={() => { setActiveTab('courses'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'courses' ? 'active' : ''}`}>
                         <GraduationCap size={20} />
                         <span>My Courses</span>
+                    </button>
+                    <button onClick={() => { setActiveTab('notes'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'notes' ? 'active' : ''}`}>
+                        <FileText size={20} />
+                        <span>Study Notes</span>
                     </button>
                     <button onClick={() => { setActiveTab('assessments'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'assessments' ? 'active' : ''}`}>
                         <FileQuestion size={20} />
@@ -352,30 +395,49 @@ const StudentPortal = () => {
                                 </div>
                             ) : (
                                 <div className="assessments-grid">
-                                    {assessments.map((asmt) => (
-                                        <div key={asmt._id} className="assessment-card">
-                                            <div className="asmt-header">
-                                                <span className={`asmt-status active`}>Active</span>
-                                                <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
-                                            </div>
-                                            <h3>{asmt.title}</h3>
-                                            <p>{asmt.description || 'No description.'}</p>
-                                            <div className="asmt-stats">
-                                                <div className="asmt-stat">
-                                                    <Clock size={16} />
-                                                    <span>{asmt.duration} Mins</span>
+                                    {assessments.map((asmt) => {
+                                        const submission = asmt.submissions?.find(s => s.student.toString() === user._id || s.student === user._id);
+                                        const isFinished = submission && submission.status !== 'started';
+                                        const showResults = asmt.status === 'results_published';
+
+                                        return (
+                                            <div key={asmt._id} className={`assessment-card ${showResults ? 'published' : ''}`}>
+                                                <div className="asmt-header">
+                                                    <span className={`asmt-status ${isFinished ? 'closed' : 'active'}`}>
+                                                        {isFinished ? 'Submitted' : 'Active'}
+                                                    </span>
+                                                    {showResults && <span className="asmt-status active">Results Out</span>}
+                                                    <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
                                                 </div>
-                                                <div className="asmt-stat">
-                                                    <span>{asmt.totalMarks} Marks</span>
+                                                <h3>{asmt.title}</h3>
+                                                <p>{asmt.description || 'No description provided.'}</p>
+                                                <div className="asmt-stats">
+                                                    <div className="asmt-stat">
+                                                        <Clock size={16} />
+                                                        <span>{asmt.duration} Mins</span>
+                                                    </div>
+                                                    <div className="asmt-stat">
+                                                        <span>{asmt.totalMarks} Marks</span>
+                                                    </div>
+                                                </div>
+                                                <div className="asmt-footer">
+                                                    {showResults ? (
+                                                        <button className="btn-view-results" onClick={() => navigate(`/assessment/results/${asmt._id}`)}>
+                                                            <GraduationCap size={16} /> View Scorecard
+                                                        </button>
+                                                    ) : isFinished ? (
+                                                        <button className="btn-disabled" disabled>
+                                                            <CheckCircle size={16} /> Submission Received
+                                                        </button>
+                                                    ) : (
+                                                        <button className="btn-start" onClick={() => handleStartExam(asmt._id)}>
+                                                            <Play size={16} /> Start Exam
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="asmt-footer">
-                                                <button className="btn-start" onClick={() => handleStartExam(asmt._id)}>
-                                                    <Play size={16} /> Start Exam
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
 
@@ -385,6 +447,40 @@ const StudentPortal = () => {
                                     onComplete={handleSubmitExam}
                                     onCancel={() => setTakingExam(null)}
                                 />
+                            )}
+                        </div>
+                    ) : activeTab === 'notes' ? (
+                        <div className="notes-section">
+                            <div className="section-header">
+                                <h1>Study Notes</h1>
+                                <p>Essential materials shared by your teachers.</p>
+                            </div>
+
+                            {loadingNotes ? (
+                                <div className="loading-state">Syncing notes...</div>
+                            ) : notes.length === 0 ? (
+                                <div className="empty-state">
+                                    <FileText size={48} />
+                                    <p>No study notes available yet.</p>
+                                </div>
+                            ) : (
+                                <div className="notes-grid">
+                                    {notes.map(note => (
+                                        <div key={note._id} className="note-card">
+                                            <div className="note-card-header">
+                                                <span className="note-course">{note.course || 'Shared'}</span>
+                                                <span className="note-date">{new Date(note.createdAt).toLocaleDateString()}</span>
+                                            </div>
+                                            <h3>{note.title}</h3>
+                                            <div className="note-content">
+                                                {note.content}
+                                            </div>
+                                            <div className="note-footer">
+                                                <span className="note-teacher">Shared by {note.teacher?.name}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     ) : activeTab === 'settings' ? (
@@ -475,6 +571,57 @@ const StudentPortal = () => {
                                         />
                                         <button type="submit" className="btn btn-primary" id="request-password-btn">
                                             <CheckCircle size={16} /> Submit Request
+                                        </button>
+                                    </form>
+                                </div>
+
+                                {/* Add New User Proposal */}
+                                <div className="settings-card highlight">
+                                    <div className="settings-card-header">
+                                        <div className="settings-icon-wrap invite">
+                                            <Plus size={20} />
+                                        </div>
+                                        <div>
+                                            <h3>Propose New User</h3>
+                                            <p>Register a peer or teacher (requires Admin approval)</p>
+                                        </div>
+                                    </div>
+                                    <form onSubmit={handleProposeUser} className="settings-form">
+                                        <div className="form-row-compact">
+                                            <input
+                                                type="text"
+                                                placeholder="Full Name"
+                                                value={proposeUser.name}
+                                                onChange={e => setProposeUser({...proposeUser, name: e.target.value})}
+                                                required
+                                            />
+                                            <input
+                                                type="email"
+                                                placeholder="Email Address"
+                                                value={proposeUser.email}
+                                                onChange={e => setProposeUser({...proposeUser, email: e.target.value})}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="form-row-compact">
+                                            <input
+                                                type="password"
+                                                placeholder="Password"
+                                                value={proposeUser.password}
+                                                onChange={e => setProposeUser({...proposeUser, password: e.target.value})}
+                                                required
+                                            />
+                                            <select 
+                                                value={proposeUser.role} 
+                                                onChange={e => setProposeUser({...proposeUser, role: e.target.value})}
+                                                className="role-select-minimal"
+                                            >
+                                                <option value="student">Student</option>
+                                                <option value="teacher">Teacher</option>
+                                            </select>
+                                        </div>
+                                        <button type="submit" className="btn btn-primary full-width">
+                                            <CheckCircle size={16} /> Propose to Admin
                                         </button>
                                     </form>
                                 </div>

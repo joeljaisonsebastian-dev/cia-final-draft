@@ -31,26 +31,39 @@ const AdminPanel = () => {
     }, []);
 
     const fetchData = async () => {
-        try {
-            const [studentsRes, teachersRes, pendingRes, changesRes] = await Promise.all([
-                fetch('/api/admin/students', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/admin/teachers', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/admin/pending', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/admin/pending-changes', { headers: { 'Authorization': `Bearer ${token}` } })
-            ]);
+        const headers = { 'Authorization': `Bearer ${token}` };
 
-            if (studentsRes.status === 401 || studentsRes.status === 403) {
+        const safeJson = async (res) => {
+            if (res.status === 401 || res.status === 403) {
                 localStorage.removeItem('adminToken');
                 navigate('/admin-login');
-                return;
+                return null;
             }
+            if (!res.ok) return [];
+            try { return await res.json(); } catch { return []; }
+        };
 
-            setStudents(await studentsRes.json());
-            setTeachers(await teachersRes.json());
-            setPendingUsers(await pendingRes.json());
-            setPendingChanges(await changesRes.json());
+        try {
+            const [sRes, tRes, pRes, cRes] = await Promise.allSettled([
+                fetch('/api/admin/students', { headers }),
+                fetch('/api/admin/teachers', { headers }),
+                fetch('/api/admin/pending',  { headers }),
+                fetch('/api/admin/pending-changes', { headers })
+            ]);
+
+            const students      = sRes.status === 'fulfilled' ? await safeJson(sRes.value) : [];
+            const teachers      = tRes.status === 'fulfilled' ? await safeJson(tRes.value) : [];
+            const pending       = pRes.status === 'fulfilled' ? await safeJson(pRes.value) : [];
+            const changes       = cRes.status === 'fulfilled' ? await safeJson(cRes.value) : [];
+
+            if (students  !== null) setStudents(students   || []);
+            if (teachers  !== null) setTeachers(teachers   || []);
+            if (pending   !== null) setPendingUsers(pending|| []);
+            if (changes   !== null) setPendingChanges(changes || []);
+
+            if (sRes.status === 'rejected') setError('Some data could not be loaded. Please restart the server.');
         } catch (err) {
-            setError('Failed to fetch data');
+            setError('Connection error. Is the backend server running?');
         } finally {
             setLoading(false);
         }

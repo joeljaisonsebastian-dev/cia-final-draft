@@ -33,6 +33,10 @@ const Hero = () => {
                         </button>
                     </Link>
                 </div>
+
+                <div className="admin-entry">
+                    <Link to="/admin-login">Are you an Admin?</Link>
+                </div>
             </div>
         </section>
     );

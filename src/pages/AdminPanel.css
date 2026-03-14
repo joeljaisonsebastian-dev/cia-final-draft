@@ -572,3 +572,86 @@
         overflow-x: auto;
     }
 }
+
+/* ===== Extra Styles ===== */
+.desktop-header-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-publish {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.btn-publish:hover {
+    background: rgba(99, 102, 241, 0.3);
+}
+
+.nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ef4444;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-left: 4px;
+}
+
+.analytics-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.sum-card-admin {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.sum-card-admin:hover { transform: translateY(-4px); }
+
+.sum-val {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #f59e0b;
+    margin-bottom: 0.5rem;
+}
+
+.sum-label {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.admin-logo {
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.admin-logo span {
+    -webkit-background-clip: text;
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}

@@ -32,6 +32,7 @@ app.use('/api/files', require('./routes/files'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/assessments', require('./routes/assessments'));
 app.use('/api/teacher', require('./routes/teacher'));
+app.use('/api/student', require('./routes/student'));
 app.use('/api/user', require('./routes/user'));
 
 // Health check

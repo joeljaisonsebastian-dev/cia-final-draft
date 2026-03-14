@@ -10,6 +10,8 @@ const TakeAssessment = ({ assessment, onComplete, onCancel }) => {
     const [isFullScreen, setIsFullScreen] = useState(false);
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+
         // Timer logic
         timerRef.current = setInterval(() => {
             setTimeLeft(prev => {
@@ -23,24 +25,28 @@ const TakeAssessment = ({ assessment, onComplete, onCancel }) => {
         }, 1000);
 
         // Anti-cheat: Tab switching detection
-        const handleVisibilityChange = () => {
-            if (document.hidden) {
-                setTabSwitches(prev => prev + 1);
-                alert('Warning: Tab switching is tracked. Switching tabs may lead to disqualification.');
+        const notifyTabSwitch = async () => {
+            setTabSwitches(prev => prev + 1);
+            alert('Warning: Tab switching is tracked and your teacher has been notified.');
+            try {
+                await fetch(`/api/assessments/tab-switch/${assessment._id}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            } catch (e) {
+                console.error('Failed to notify teacher of tab switch');
             }
         };
 
-        const handleBlur = () => {
-            setTabSwitches(prev => prev + 1);
+        const handleVisibilityChange = () => {
+            if (document.hidden) notifyTabSwitch();
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('blur', handleBlur);
 
         return () => {
             clearInterval(timerRef.current);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('blur', handleBlur);
         };
     }, []);
 
