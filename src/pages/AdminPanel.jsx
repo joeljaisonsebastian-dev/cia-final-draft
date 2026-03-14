@@ -8,6 +8,14 @@ const AdminPanel = () => {
     const [teachers, setTeachers] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
     const [pendingChanges, setPendingChanges] = useState([]);
+    const [assessments, setAssessments] = useState([]);
+    const [courses, setCourses] = useState([
+        { id: 1, name: 'Python', students: 0 },
+        { id: 2, name: 'Data Structures', students: 0 },
+        { id: 3, name: 'DBMS', students: 0 },
+        { id: 4, name: 'Web Development', students: 0 },
+        { id: 5, name: 'Computer Networks', students: 0 }
+    ]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [addRole, setAddRole] = useState('student');
     const [newUser, setNewUser] = useState({ name: '', email: '' });
@@ -18,6 +26,7 @@ const AdminPanel = () => {
     const [loading, setLoading] = useState(true);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('students');
+    const [theme, setTheme] = useState('dark');
     const navigate = useNavigate();
 
     const token = localStorage.getItem('adminToken');
@@ -28,6 +37,9 @@ const AdminPanel = () => {
             return;
         }
         fetchData();
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        setTheme(savedTheme);
+        document.body.setAttribute('data-theme', savedTheme);
     }, []);
 
     const fetchData = async () => {
@@ -44,24 +56,27 @@ const AdminPanel = () => {
         };
 
         try {
-            const [sRes, tRes, pRes, cRes] = await Promise.allSettled([
+            const [sRes, tRes, pRes, cRes, aRes] = await Promise.allSettled([
                 fetch('/api/admin/students', { headers }),
                 fetch('/api/admin/teachers', { headers }),
                 fetch('/api/admin/pending',  { headers }),
-                fetch('/api/admin/pending-changes', { headers })
+                fetch('/api/admin/pending-changes', { headers }),
+                fetch('/api/assessments/teacher', { headers })
             ]);
 
-            const students      = sRes.status === 'fulfilled' ? await safeJson(sRes.value) : [];
-            const teachers      = tRes.status === 'fulfilled' ? await safeJson(tRes.value) : [];
-            const pending       = pRes.status === 'fulfilled' ? await safeJson(pRes.value) : [];
-            const changes       = cRes.status === 'fulfilled' ? await safeJson(cRes.value) : [];
+            const studentsData = sRes.status === 'fulfilled' ? await safeJson(sRes.value) : [];
+            const teachersData = tRes.status === 'fulfilled' ? await safeJson(tRes.value) : [];
+            const pendingData  = pRes.status === 'fulfilled' ? await safeJson(pRes.value) : [];
+            const changesData  = cRes.status === 'fulfilled' ? await safeJson(cRes.value) : [];
+            const asmtData     = aRes.status === 'fulfilled' ? await safeJson(aRes.value) : [];
 
-            if (students  !== null) setStudents(students   || []);
-            if (teachers  !== null) setTeachers(teachers   || []);
-            if (pending   !== null) setPendingUsers(pending|| []);
-            if (changes   !== null) setPendingChanges(changes || []);
+            if (studentsData !== null) setStudents(studentsData);
+            if (teachersData !== null) setTeachers(teachersData);
+            if (pendingData  !== null) setPendingUsers(pendingData);
+            if (changesData  !== null) setPendingChanges(changesData);
+            if (asmtData     !== null) setAssessments(asmtData);
 
-            if (sRes.status === 'rejected') setError('Some data could not be loaded. Please restart the server.');
+            if (sRes.status === 'rejected') setError('Some data could not be loaded.');
         } catch (err) {
             setError('Connection error. Is the backend server running?');
         } finally {
@@ -207,6 +222,21 @@ const AdminPanel = () => {
         }
     };
 
+    const handleDeleteAssessmentByAdmin = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this assessment? This will also remove student submissions.')) return;
+        try {
+            const res = await fetch(`/api/assessments/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to delete assessment');
+            showMsg('success', 'Assessment deleted by Admin');
+            fetchData();
+        } catch (err) {
+            showMsg('error', err.message);
+        }
+    };
+
     const handleDownloadCSV = async () => {
         try {
             const res = await fetch('/api/admin/students/csv', {
@@ -289,6 +319,13 @@ const AdminPanel = () => {
         } catch (err) {
             showMsg('error', err.message);
         }
+    };
+
+    const handleToggleTheme = () => {
+        const newTheme = theme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+        document.body.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
     };
 
     const handleLogout = () => {
@@ -384,6 +421,10 @@ const AdminPanel = () => {
                     <button onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}>
                         <BarChart3 size={20} />
                         <span>Analytics</span>
+                    </button>
+                    <button onClick={() => { setActiveTab('assessments'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'assessments' ? 'active' : ''}`}>
+                        <FileQuestion size={20} />
+                        <span>Assessments</span>
                     </button>
                     <button onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
                         <Settings size={20} />
@@ -564,6 +605,46 @@ const AdminPanel = () => {
                             )}
                         </div>
                     </div>
+                ) : activeTab === 'assessments' ? (
+                    <div className="table-card">
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Global Assessments ({assessments.length})</h3>
+                        </div>
+                        {loading ? (
+                            <div className="loading-state">Loading assessments...</div>
+                        ) : assessments.length === 0 ? (
+                            <div className="empty-state"><FileQuestion size={48} /><p>No assessments found.</p></div>
+                        ) : (
+                            <table className="students-table">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Created By</th>
+                                        <th>Status</th>
+                                        <th>Questions</th>
+                                        <th>Submissions</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {assessments.map(a => (
+                                        <tr key={a._id}>
+                                            <td style={{ fontWeight: 600 }}>{a.title}</td>
+                                            <td>{a.teacher?.name || 'Unknown'}</td>
+                                            <td><span className={`status-pill ${a.status}`}>{a.status}</span></td>
+                                            <td>{a.questions?.length || 0}</td>
+                                            <td>{a.submissions?.length || 0}</td>
+                                            <td className="actions-cell">
+                                                <button className="icon-btn delete" onClick={() => handleDeleteAssessmentByAdmin(a._id)} title="Delete Assessment">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
                 ) : activeTab === 'analytics' ? (
                     <div className="analytics-summary-cards">
                         <div className="sum-card-admin">
@@ -582,11 +663,27 @@ const AdminPanel = () => {
                             <div className="sum-val">{pendingChanges.length}</div>
                             <div className="sum-label">Pending Changes</div>
                         </div>
+                        <div className="sum-card-admin">
+                            <div className="sum-val">{assessments.length}</div>
+                            <div className="sum-label">Total Assessments</div>
+                        </div>
                     </div>
                 ) : (
-                    <div className="empty-state" style={{ padding: '60px', opacity: 0.6 }}>
-                        <h2>Settings</h2>
-                        <p>Admin settings coming soon.</p>
+                    <div className="settings-section-admin" style={{ padding: '20px' }}>
+                        <div className="settings-card" style={{ maxWidth: '400px', background: 'rgba(255,255,255,0.05)', padding: '20px', borderRadius: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ margin: 0 }}>Theme Mode</h3>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '0.9rem', opacity: 0.6 }}>Switch between dark and light</p>
+                                </div>
+                                <button
+                                    className={`toggle-switch ${theme === 'dark' ? 'on' : 'off'}`}
+                                    onClick={handleToggleTheme}
+                                >
+                                    <span className="toggle-thumb"></span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </main>

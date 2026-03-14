@@ -36,6 +36,7 @@ const AssessmentSchema = new mongoose.Schema({
     questions: [QuestionSchema],
     submissions: [SubmissionSchema],
     status: { type: String, enum: ['draft', 'published', 'closed', 'results_published'], default: 'draft' },
+    course: { type: String, default: 'General' },
     createdAt: { type: Date, default: Date.now },
     publishedAt: Date
 });

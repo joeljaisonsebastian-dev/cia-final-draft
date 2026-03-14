@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './StudentPortal.css';
-import { BookOpen, GraduationCap, Settings, Bell, Search, Download, FileText, LogOut, Menu, X, FileQuestion, Clock, Play, AlertCircle, Sun, Moon, User, Lock, CheckCircle } from 'lucide-react';
+import { BookOpen, GraduationCap, Settings, Bell, Search, Download, FileText, LogOut, Menu, X, FileQuestion, Clock, Play, AlertCircle, Sun, Moon, User, Lock, CheckCircle, ArrowRight } from 'lucide-react';
 import TakeAssessment from '../components/TakeAssessment';
 
 const StudentPortal = () => {
@@ -22,6 +22,7 @@ const StudentPortal = () => {
     const [notes, setNotes] = useState([]);
     const [loadingNotes, setLoadingNotes] = useState(false);
     const [proposeUser, setProposeUser] = useState({ name: '', email: '', password: '', role: 'student' });
+    const [tabSwitches, setTabSwitches] = useState(0);
     const navigate = useNavigate();
 
     const token = localStorage.getItem('token');
@@ -41,6 +42,24 @@ const StudentPortal = () => {
         setTheme(savedTheme);
         document.body.setAttribute('data-theme', savedTheme);
     }, []);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden && takingExam) {
+                setTabSwitches(prev => prev + 1);
+                // Notify the backend immediately
+                fetch(`/api/assessments/tab-switch/${takingExam._id}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(err => console.error('Failed to notify tab switch'));
+                
+                alert('⚠️ Warning: Tab switching is monitored. This activity has been reported to your teacher.');
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [takingExam, token]);
 
     const fetchNotes = async () => {
         setLoadingNotes(true);
@@ -177,7 +196,7 @@ const StudentPortal = () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(submissionData)
+                body: JSON.stringify({ ...submissionData, tabSwitches })
             });
             if (res.ok) {
                 alert('Exam submitted successfully!');
@@ -233,6 +252,8 @@ const StudentPortal = () => {
         } catch (err) {
             setSettingsMsg({ type: 'error', text: 'Request failed' });
         }
+    };
+
     const handleProposeUser = async (e) => {
         e.preventDefault();
         setSettingsMsg({ type: '', text: '' });
@@ -728,7 +749,89 @@ const StudentPortal = () => {
                                     )}
                                 </div>
                             </div>
+
+                            {/* Recent Study Notes on Dashboard */}
+                            <div className="activity-section" style={{ marginTop: '2rem' }}>
+                                <h2>Recent Study Notes</h2>
+                                <div className="activity-card">
+                                    {loadingNotes ? (
+                                        <div className="empty-state"><p>Loading notes...</p></div>
+                                    ) : notes.length === 0 ? (
+                                        <div className="empty-state"><p>No study notes shared yet.</p></div>
+                                    ) : (
+                                        <div className="notes-list-dashboard">
+                                            {notes.slice(0, 3).map((note) => (
+                                                <div key={note._id} className="note-item-dashboard" onClick={() => setActiveTab('notes')}>
+                                                    <div className="note-icon">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div className="note-info">
+                                                        <span className="note-title-dash">{note.title}</span>
+                                                        <span className="note-teacher-dash">By {note.teacher?.name} • {new Date(note.createdAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <ArrowRight size={16} className="arrow-dash" />
+                                                </div>
+                                            ))}
+                                            {notes.length > 3 && (
+                                                <button className="view-all-btn" onClick={() => setActiveTab('notes')}>
+                                                    View All Notes
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </>
+                    ) : activeTab === 'courses' ? (
+                        <div className="courses-section">
+                            <div className="section-header">
+                                <h1>Academic Performance</h1>
+                                <p>Progress report across all subjects.</p>
+                            </div>
+                            
+                            <div className="table-card" style={{ background: 'rgba(30, 41, 59, 0.5)', backdropFilter: 'blur(12px)', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
+                                <table className="students-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead style={{ background: 'rgba(255,255,255,0.05)' }}>
+                                        <tr>
+                                            <th style={{ padding: '15px', textAlign: 'left', color: 'var(--text-muted)' }}>Subject</th>
+                                            <th style={{ padding: '15px', textAlign: 'left', color: 'var(--text-muted)' }}>Marks (%)</th>
+                                            <th style={{ padding: '15px', textAlign: 'left', color: 'var(--text-muted)' }}>Attendance (%)</th>
+                                            <th style={{ padding: '15px', textAlign: 'left', color: 'var(--text-muted)' }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {[
+                                            { name: 'Python', key: 'python' },
+                                            { name: 'Data Structures', key: 'dataStructures' },
+                                            { name: 'DBMS', key: 'dbms' },
+                                            { name: 'Web Development', key: 'webDev' },
+                                            { name: 'Computer Networks', key: 'networks' }
+                                        ].map(course => {
+                                            const data = user.academicData?.[course.key] || { marks: 0, attendance: 0 };
+                                            return (
+                                                <tr key={course.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <td style={{ padding: '15px', fontWeight: 600 }}>{course.name}</td>
+                                                    <td style={{ padding: '15px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px' }}>
+                                                                <div style={{ width: `${data.marks}%`, height: '100%', background: '#38bdf8', borderRadius: '3px' }}></div>
+                                                            </div>
+                                                            <span>{data.marks}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '15px' }}>{data.attendance}%</td>
+                                                    <td style={{ padding: '15px' }}>
+                                                        <span className={`status-pill ${data.attendance >= 75 ? 'active' : 'closed'}`} style={{ padding: '4px 10px', fontSize: '0.8rem' }}>
+                                                            {data.attendance >= 75 ? 'On Track' : 'Low Att.'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     ) : (
                         <div className="empty-state" style={{ padding: '60px', opacity: 0.6 }}>
                             <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Module</h2>

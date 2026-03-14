@@ -83,11 +83,19 @@ router.post('/upload-questions', auth, upload.single('file'), async (req, res) =
     }
 });
 
-// Get all assessments for a teacher
+// Get all assessments (Teacher sees theirs, Admin sees all)
 router.get('/teacher', auth, async (req, res) => {
     try {
-        if (req.user.role !== 'teacher') return res.status(403).json({ message: 'Access denied' });
-        const assessments = await Assessment.find({ teacher: req.user.id }).sort({ createdAt: -1 });
+        let query = {};
+        if (req.user.role === 'teacher') {
+            query = { teacher: req.user.id };
+        } else if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+        
+        const assessments = await Assessment.find(query)
+            .populate('teacher', 'name')
+            .sort({ createdAt: -1 });
         res.json(assessments);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -99,7 +107,7 @@ router.post('/', auth, async (req, res) => {
     try {
         if (req.user.role !== 'teacher') return res.status(403).json({ message: 'Access denied' });
         
-        const { title, description, duration, totalMarks, questions } = req.body;
+        const { title, description, duration, totalMarks, questions, course } = req.body;
         
         const newAssessment = new Assessment({
             title,
@@ -107,6 +115,7 @@ router.post('/', auth, async (req, res) => {
             duration,
             totalMarks,
             questions,
+            course: course || 'General',
             teacher: req.user.id
         });
         
@@ -159,13 +168,38 @@ router.put('/publish-results/:id', auth, async (req, res) => {
         assessment.status = 'results_published';
         await assessment.save();
 
+        // Update student academic records in User model
+        const courseMapping = {
+            'Python': 'python',
+            'Data Structures': 'dataStructures',
+            'DBMS': 'dbms',
+            'Web Development': 'webDev',
+            'Computer Networks': 'networks'
+        };
+
+        const field = courseMapping[assessment.course];
+        
+        if (field) {
+            for (const sub of assessment.submissions) {
+                // Calculate total marks for this student
+                const totalMarksObtained = sub.answers.reduce((acc, ans) => acc + (ans.marksObtained || 0), 0);
+                
+                await User.findByIdAndUpdate(sub.student, {
+                    [`academicData.${field}.marks`]: totalMarksObtained
+                });
+            }
+            // Trigger CSV update since marks changed
+            const { updateUsersCSV } = require('./admin');
+            await updateUsersCSV();
+        }
+
         // Notify all students who submitted
         try {
             const submittedStudentIds = assessment.submissions.map(s => s.student);
             const notifications = submittedStudentIds.map(id => ({
                 user: id,
                 title: 'Assessment Results Published',
-                message: `Results for "${assessment.title}" are now available.`,
+                message: `Results for "${assessment.title}" are now available. Your profile has been updated.`,
                 type: 'assessment',
                 relatedId: assessment._id
             }));
@@ -278,6 +312,33 @@ router.post('/tab-switch/:id', auth, async (req, res) => {
         });
 
         res.json({ message: 'Notified' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Notify teacher when student switches tabs (Anti-cheat)
+router.post('/tab-switch/:id', auth, async (req, res) => {
+    try {
+        const assessment = await Assessment.findById(req.params.id);
+        if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
+
+        // Update student's submission switch count
+        let submission = assessment.submissions.find(s => s.student.toString() === req.user.id);
+        if (submission) {
+            submission.tabSwitches = (submission.tabSwitches || 0) + 1;
+            await assessment.save();
+        }
+
+        // Notify teacher
+        await Notification.create({
+            user: assessment.teacher,
+            title: '⚠️ Tab Switch Detected',
+            message: `Student "${req.user.name}" switched tabs during assessment "${assessment.title}". Total switches: ${submission ? submission.tabSwitches : 1}`,
+            type: 'submission'
+        });
+
+        res.json({ message: 'Tab switch recorded' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

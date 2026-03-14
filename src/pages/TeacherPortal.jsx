@@ -23,6 +23,10 @@ const TeacherPortal = () => {
     const [newName, setNewName] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [theme, setTheme] = useState('dark');
+    const [notes, setNotes] = useState([]);
+    const [loadingNotes, setLoadingNotes] = useState(false);
+    const [noteForm, setNoteForm] = useState({ title: '', content: '', course: 'General' });
+    const [proposeUser, setProposeUser] = useState({ name: '', email: '', password: '', role: 'student' });
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
@@ -38,10 +42,70 @@ const TeacherPortal = () => {
         fetchAssessments();
         fetchStudents();
         fetchNotifications();
+        fetchNotes();
         const savedTheme = localStorage.getItem('theme') || 'dark';
         setTheme(savedTheme);
         document.body.setAttribute('data-theme', savedTheme);
     }, []);
+
+    const fetchNotes = async () => {
+        setLoadingNotes(true);
+        try {
+            const res = await fetch('/api/teacher/notes', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) setNotes(data);
+        } catch (err) {
+            console.error('Failed to load notes');
+        } finally {
+            setLoadingNotes(false);
+        }
+    };
+
+    const handleCreateNote = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        try {
+            const res = await fetch('/api/teacher/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(noteForm)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSuccess(`Note "${noteForm.title}" shared with students!`);
+                setNoteForm({ title: '', content: '', course: 'General' });
+                fetchNotes();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    const handleProposeUser = async (e) => {
+        e.preventDefault();
+        setSettingsMsg({ type: '', text: '' });
+        try {
+            const res = await fetch('/api/auth/add-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(proposeUser)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSettingsMsg({ type: 'success', text: 'User proposal sent to Admin! Awaiting approval.' });
+                setProposeUser({ name: '', email: '', password: '', role: 'student' });
+            } else {
+                setSettingsMsg({ type: 'error', text: data.message });
+            }
+        } catch (err) {
+            setSettingsMsg({ type: 'error', text: 'Request failed' });
+        }
+    };
 
     const fetchNotifications = async () => {
         try {
@@ -356,6 +420,10 @@ const TeacherPortal = () => {
                         <FileQuestion size={20} />
                         <span>Assessments</span>
                     </button>
+                    <button onClick={() => { setActiveTab('notes'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'notes' ? 'active' : ''}`}>
+                        <FileText size={20} />
+                        <span>Study Notes</span>
+                    </button>
                     <button onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
                         <Settings size={20} />
                         <span>Settings</span>
@@ -509,6 +577,74 @@ const TeacherPortal = () => {
                                 />
                             )}
                         </div>
+                    ) : activeTab === 'notes' ? (
+                        <div className="notes-section">
+                            <div className="section-header">
+                                <div>
+                                    <h1>Shared Study Notes</h1>
+                                    <p>Manage and share essential study materials with your classes.</p>
+                                </div>
+                            </div>
+
+                            {error && <div className="alert alert-error">{error}</div>}
+                            {success && <div className="alert alert-success">{success}</div>}
+
+                            <div className="notes-management-grid">
+                                <div className="note-editor-card">
+                                    <h3>Create New Note</h3>
+                                    <form onSubmit={handleCreateNote} className="note-form">
+                                        <input
+                                            type="text"
+                                            placeholder="Note Title (e.g., Intro to Python)"
+                                            value={noteForm.title}
+                                            onChange={e => setNoteForm({...noteForm, title: e.target.value})}
+                                            required
+                                        />
+                                        <select 
+                                            value={noteForm.course} 
+                                            onChange={e => setNoteForm({...noteForm, course: e.target.value})}
+                                        >
+                                            <option value="General">General/Other</option>
+                                            <option value="Python">Python</option>
+                                            <option value="Data Structures">Data Structures</option>
+                                            <option value="DBMS">DBMS</option>
+                                            <option value="Web Development">Web Development</option>
+                                            <option value="Computer Networks">Computer Networks</option>
+                                        </select>
+                                        <textarea
+                                            placeholder="Paste your note content here..."
+                                            value={noteForm.content}
+                                            onChange={e => setNoteForm({...noteForm, content: e.target.value})}
+                                            required
+                                        ></textarea>
+                                        <button type="submit" className="btn btn-primary">
+                                            <Plus size={18} /> Share Note with Students
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="my-notes-list">
+                                    <h3>Published Notes</h3>
+                                    {loadingNotes ? (
+                                        <div className="loading-notes">Syncing...</div>
+                                    ) : notes.length === 0 ? (
+                                        <div className="empty-state">No notes shared yet.</div>
+                                    ) : (
+                                        <div className="notes-grid-mini">
+                                            {notes.map(note => (
+                                                <div key={note._id} className="note-card-mini">
+                                                    <div className="note-meta-mini">
+                                                        <span>{note.course}</span> • <span>{new Date(note.createdAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <h4>{note.title}</h4>
+                                                    <p>{note.content.substring(0, 80)}...</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     ) : activeTab === 'settings' ? (
                         <div className="settings-section">
                             <div className="section-header">
@@ -588,6 +724,54 @@ const TeacherPortal = () => {
                                         />
                                         <button type="submit" className="btn btn-primary">
                                             <CheckCircle size={16} /> Submit Request
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="settings-card highlight">
+                                    <div className="settings-card-header">
+                                        <div className="settings-icon-wrap invite"><Plus size={20} /></div>
+                                        <div>
+                                            <h3>Add New User</h3>
+                                            <p>Register a student or teacher (requires admin approval)</p>
+                                        </div>
+                                    </div>
+                                    <form onSubmit={handleProposeUser} className="settings-form">
+                                        <div className="form-row-compact">
+                                            <input
+                                                type="text"
+                                                placeholder="Full Name"
+                                                value={proposeUser.name}
+                                                onChange={e => setProposeUser({...proposeUser, name: e.target.value})}
+                                                required
+                                            />
+                                            <input
+                                                type="email"
+                                                placeholder="Email Address"
+                                                value={proposeUser.email}
+                                                onChange={e => setProposeUser({...proposeUser, email: e.target.value})}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="form-row-compact">
+                                            <input
+                                                type="password"
+                                                placeholder="Password"
+                                                value={proposeUser.password}
+                                                onChange={e => setProposeUser({...proposeUser, password: e.target.value})}
+                                                required
+                                            />
+                                            <select 
+                                                value={proposeUser.role} 
+                                                onChange={e => setProposeUser({...proposeUser, role: e.target.value})}
+                                                className="role-select-minimal"
+                                            >
+                                                <option value="student">Student</option>
+                                                <option value="teacher">Teacher</option>
+                                            </select>
+                                        </div>
+                                        <button type="submit" className="btn btn-primary full-width">
+                                            <CheckCircle size={16} /> Propose to Admin
                                         </button>
                                     </form>
                                 </div>

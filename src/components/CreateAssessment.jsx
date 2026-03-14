@@ -6,6 +6,7 @@ const CreateAssessment = ({ onSave, onCancel }) => {
     const [description, setDescription] = useState('');
     const [duration, setDuration] = useState(60);
     const [totalMarks, setTotalMarks] = useState(0);
+    const [course, setCourse] = useState('Python');
     const [questions, setQuestions] = useState([]);
     const [showAIDialog, setShowAIDialog] = useState(false);
     const [showAddMenu, setShowAddMenu] = useState(false);
@@ -102,7 +103,7 @@ const CreateAssessment = ({ onSave, onCancel }) => {
             return;
         }
         const total = questions.reduce((sum, q) => sum + Number(q.marks), 0);
-        onSave({ title, description, duration, totalMarks: total, questions });
+        onSave({ title, description, duration, totalMarks: total, questions, course });
     };
 
     return (
@@ -132,6 +133,17 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                                 onChange={(e) => setDuration(e.target.value)}
                                 min="1"
                             />
+                        </div>
+                        <div className="input-group">
+                            <label>Course</label>
+                            <select value={course} onChange={(e) => setCourse(e.target.value)} className="modal-select">
+                                <option value="Python">Python</option>
+                                <option value="Data Structures">Data Structures</option>
+                                <option value="DBMS">DBMS</option>
+                                <option value="Web Development">Web Development</option>
+                                <option value="Computer Networks">Computer Networks</option>
+                                <option value="General">General</option>
+                            </select>
                         </div>
                     </div>
 

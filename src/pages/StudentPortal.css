@@ -596,12 +596,21 @@
 
 /* Mobile menu toggles */
 .mobile-menu-btn {
-    display: none;
-    background: transparent;
-    border: none;
+    display: flex;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
     color: var(--text-main);
     cursor: pointer;
-    padding: 0;
+    transition: all 0.2s;
+}
+
+.mobile-menu-btn:hover {
+    background: rgba(255,255,255,0.1);
 }
 
 .close-menu-btn {
