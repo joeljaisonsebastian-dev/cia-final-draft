@@ -46,20 +46,85 @@ router.post('/generate-ai', auth, async (req, res) => {
             return res.json(mockQuestions);
         }
 
-        // Real AI generation logic would go here (e.g., calling Google Gemini API)
-        // For now, keeping mock but acknowledging the key is ready
-        const mockQuestions = Array.from({ length: count || 5 }).map((_, i) => ({
-            id: Date.now() + i,
-            questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
-            questionType: 'mcq',
-            marks: 1,
-            options: ['Option A', 'Option B', 'Option C', 'Option D'],
-            correctAnswer: 'Option A'
-        }));
+        // Real AI generation using Google Gemini API
+        const prompt = `Generate ${count || 5} multiple choice questions about ${topic || 'general knowledge'}. 
+        Each question should have 4 options (A, B, C, D) and one correct answer.
+        Format the response as a JSON array of objects with this structure:
+        [
+            {
+                "questionText": "Question here?",
+                "questionType": "mcq",
+                "marks": 1,
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correctAnswer": "Option A"
+            }
+        ]
+        Make sure the questions are educational and appropriate for assessments.`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 2048,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
         
-        res.json(mockQuestions);
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            throw new Error('Invalid response from Gemini API');
+        }
+
+        const generatedText = data.candidates[0].content.parts[0].text;
+        
+        // Try to parse the JSON response
+        let questions;
+        try {
+            // Clean the response text to extract JSON
+            const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                questions = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('No JSON found in response');
+            }
+        } catch (parseError) {
+            console.error('Failed to parse AI response:', parseError);
+            console.log('Raw response:', generatedText);
+            // Fallback to mock data
+            questions = Array.from({ length: count || 5 }).map((_, i) => ({
+                id: Date.now() + i,
+                questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
+                questionType: 'mcq',
+                marks: 1,
+                options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                correctAnswer: 'Option A'
+            }));
+        }
+
+        // Ensure each question has an ID
+        questions = questions.map((q, i) => ({
+            id: Date.now() + i,
+            ...q
+        }));
+
+        res.json(questions);
     } catch (err) {
-        res.status(500).json({ message: 'AI Generation failed' });
+        console.error('AI Generation error:', err);
+        res.status(500).json({ message: 'AI Generation failed: ' + err.message });
     }
 });
 

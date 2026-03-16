@@ -21,7 +21,6 @@ const StudentPortal = () => {
     const [theme, setTheme] = useState('dark');
     const [notes, setNotes] = useState([]);
     const [loadingNotes, setLoadingNotes] = useState(false);
-    const [proposeUser, setProposeUser] = useState({ name: '', email: '', password: '', role: 'student' });
     const [tabSwitches, setTabSwitches] = useState(0);
     const navigate = useNavigate();
 
@@ -246,27 +245,6 @@ const StudentPortal = () => {
             if (res.ok) {
                 setSettingsMsg({ type: 'success', text: 'Password change request submitted! Awaiting admin approval.' });
                 setNewPassword('');
-            } else {
-                setSettingsMsg({ type: 'error', text: data.message });
-            }
-        } catch (err) {
-            setSettingsMsg({ type: 'error', text: 'Request failed' });
-        }
-    };
-
-    const handleProposeUser = async (e) => {
-        e.preventDefault();
-        setSettingsMsg({ type: '', text: '' });
-        try {
-            const res = await fetch('/api/auth/add-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(proposeUser)
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setSettingsMsg({ type: 'success', text: 'User proposal sent to Admin! Awaiting approval.' });
-                setProposeUser({ name: '', email: '', password: '', role: 'student' });
             } else {
                 setSettingsMsg({ type: 'error', text: data.message });
             }
@@ -592,57 +570,6 @@ const StudentPortal = () => {
                                         />
                                         <button type="submit" className="btn btn-primary" id="request-password-btn">
                                             <CheckCircle size={16} /> Submit Request
-                                        </button>
-                                    </form>
-                                </div>
-
-                                {/* Add New User Proposal */}
-                                <div className="settings-card highlight">
-                                    <div className="settings-card-header">
-                                        <div className="settings-icon-wrap invite">
-                                            <Plus size={20} />
-                                        </div>
-                                        <div>
-                                            <h3>Propose New User</h3>
-                                            <p>Register a peer or teacher (requires Admin approval)</p>
-                                        </div>
-                                    </div>
-                                    <form onSubmit={handleProposeUser} className="settings-form">
-                                        <div className="form-row-compact">
-                                            <input
-                                                type="text"
-                                                placeholder="Full Name"
-                                                value={proposeUser.name}
-                                                onChange={e => setProposeUser({...proposeUser, name: e.target.value})}
-                                                required
-                                            />
-                                            <input
-                                                type="email"
-                                                placeholder="Email Address"
-                                                value={proposeUser.email}
-                                                onChange={e => setProposeUser({...proposeUser, email: e.target.value})}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="form-row-compact">
-                                            <input
-                                                type="password"
-                                                placeholder="Password"
-                                                value={proposeUser.password}
-                                                onChange={e => setProposeUser({...proposeUser, password: e.target.value})}
-                                                required
-                                            />
-                                            <select 
-                                                value={proposeUser.role} 
-                                                onChange={e => setProposeUser({...proposeUser, role: e.target.value})}
-                                                className="role-select-minimal"
-                                            >
-                                                <option value="student">Student</option>
-                                                <option value="teacher">Teacher</option>
-                                            </select>
-                                        </div>
-                                        <button type="submit" className="btn btn-primary full-width">
-                                            <CheckCircle size={16} /> Propose to Admin
                                         </button>
                                     </form>
                                 </div>
