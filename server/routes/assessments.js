@@ -394,12 +394,14 @@ router.get('/student/:id', auth, async (req, res) => {
     }
 });
 
-// Delete assessment (Teacher only)
+// Delete assessment (Teacher who owns it, or Admin)
 router.delete('/:id', auth, async (req, res) => {
     try {
         const assessment = await Assessment.findById(req.params.id);
         if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
-        if (assessment.teacher.toString() !== req.user.id) return res.status(403).json({ message: 'Unauthorized' });
+        const isOwner = assessment.teacher.toString() === req.user.id;
+        const isAdmin = req.user.role === 'admin';
+        if (!isOwner && !isAdmin) return res.status(403).json({ message: 'Unauthorized' });
         await Assessment.findByIdAndDelete(req.params.id);
         res.json({ message: 'Assessment deleted successfully' });
     } catch (err) {
