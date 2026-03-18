@@ -421,7 +421,17 @@ const StudentPortal = () => {
                                         {notifications.length === 0 ? (
                                             <div className="notif-empty">No notifications yet</div>
                                         ) : notifications.map(n => (
-                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}>
+                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => {
+                                                    setShowNotifPanel(false);
+                                                    if (n.type === 'assessment') { setActiveTab('assessments'); setAsmtSubTab('active'); }
+                                                    else if (n.type === 'system') { setActiveTab('assessments'); setAsmtSubTab('requests'); }
+                                                    else if (n.type === 'file') { setActiveTab('dashboard'); }
+                                                    else if (n.type === 'note') { setActiveTab('notes'); }
+                                                    else { setActiveTab('assessments'); }
+                                                }}
+                                            >
                                                 <span className="notif-icon">{getNotifIcon(n.type)}</span>
                                                 <div className="notif-body">
                                                     <p className="notif-title">{n.title}</p>

@@ -473,7 +473,15 @@ const TeacherPortal = () => {
                                         {notifications.length === 0 ? (
                                             <div className="notif-empty">No notifications yet</div>
                                         ) : notifications.map(n => (
-                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}>
+                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => {
+                                                    setShowNotifPanel(false);
+                                                    if (n.type === 'submission' || n.type === 'tab-switch') { setActiveTab('assessments'); }
+                                                    else if (n.type === 'system') { setActiveTab('assessments'); }
+                                                    else { setActiveTab('dashboard'); }
+                                                }}
+                                            >
                                                 <span className="notif-icon">{getNotifIcon(n.type)}</span>
                                                 <div className="notif-body">
                                                     <p className="notif-title">{n.title}</p>
