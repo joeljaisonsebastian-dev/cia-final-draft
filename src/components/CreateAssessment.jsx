@@ -28,7 +28,12 @@ const CreateAssessment = ({ onSave, onCancel }) => {
                 body: JSON.stringify({ count: aiCount, topic: aiTopic })
             });
             const data = await res.json();
-            setQuestions([...questions, ...data]);
+            // Add IDs to AI-generated questions if they don't have them
+            const questionsWithIds = data.map(q => ({
+                id: q.id || Date.now() + Math.random(),
+                ...q
+            }));
+            setQuestions([...questions, ...questionsWithIds]);
             setShowAIDialog(false);
         } catch (err) {
             alert('AI Generation failed');

@@ -48,18 +48,23 @@ router.post('/generate-ai', auth, async (req, res) => {
 
         // Real AI generation using Google Gemini API
         const prompt = `Generate ${count || 5} multiple choice questions about ${topic || 'general knowledge'}. 
-        Each question should have 4 options (A, B, C, D) and one correct answer.
-        Format the response as a JSON array of objects with this structure:
-        [
-            {
-                "questionText": "Question here?",
-                "questionType": "mcq",
-                "marks": 1,
-                "options": ["Option A", "Option B", "Option C", "Option D"],
-                "correctAnswer": "Option A"
-            }
-        ]
-        Make sure the questions are educational and appropriate for assessments.`;
+
+Return ONLY a valid JSON array with this exact structure:
+[
+  {
+    "questionText": "What is the capital of France?",
+    "questionType": "mcq",
+    "marks": 1,
+    "options": ["Paris", "London", "Berlin", "Madrid"],
+    "correctAnswer": "Paris"
+  }
+]
+
+Requirements:
+- Each question must have exactly 4 options
+- One option must be the correct answer
+- Make questions educational and appropriate
+- Return ONLY the JSON array, no additional text or explanation`;
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
@@ -73,23 +78,26 @@ router.post('/generate-ai', auth, async (req, res) => {
                     }]
                 }],
                 generationConfig: {
-                    temperature: 0.7,
-                    maxOutputTokens: 2048,
+                    temperature: 0.3,
+                    maxOutputTokens: 4096,
                 }
             })
         });
 
         if (!response.ok) {
+            console.error(`Gemini API error: ${response.status} ${response.statusText}`);
             throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
         
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            console.error('Invalid Gemini API response:', data);
             throw new Error('Invalid response from Gemini API');
         }
 
         const generatedText = data.candidates[0].content.parts[0].text;
+        console.log('Gemini raw response:', generatedText);
         
         // Try to parse the JSON response
         let questions;
@@ -99,27 +107,38 @@ router.post('/generate-ai', auth, async (req, res) => {
             if (jsonMatch) {
                 questions = JSON.parse(jsonMatch[0]);
             } else {
-                throw new Error('No JSON found in response');
+                // Try parsing the entire response as JSON
+                questions = JSON.parse(generatedText.trim());
             }
+            
+            // Validate the structure
+            if (!Array.isArray(questions)) {
+                throw new Error('Response is not an array');
+            }
+            
+            // Ensure each question has the required fields
+            questions = questions.map(q => ({
+                questionText: q.questionText || 'Question text missing',
+                questionType: q.questionType || 'mcq',
+                marks: q.marks || 1,
+                options: Array.isArray(q.options) ? q.options : ['A', 'B', 'C', 'D'],
+                correctAnswer: q.correctAnswer || q.options[0] || 'A',
+                aiGenerated: true
+            }));
+            
         } catch (parseError) {
             console.error('Failed to parse AI response:', parseError);
             console.log('Raw response:', generatedText);
             // Fallback to mock data
             questions = Array.from({ length: count || 5 }).map((_, i) => ({
-                id: Date.now() + i,
                 questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
                 questionType: 'mcq',
                 marks: 1,
                 options: ['Option A', 'Option B', 'Option C', 'Option D'],
-                correctAnswer: 'Option A'
+                correctAnswer: 'Option A',
+                aiGenerated: true
             }));
         }
-
-        // Ensure each question has an ID
-        questions = questions.map((q, i) => ({
-            id: Date.now() + i,
-            ...q
-        }));
 
         res.json(questions);
     } catch (err) {
@@ -191,12 +210,22 @@ router.post('/', auth, async (req, res) => {
         
         const { title, description, duration, totalMarks, questions, course } = req.body;
         
+        // Clean questions - remove client-side IDs and ensure proper structure
+        const cleanedQuestions = questions.map(q => ({
+            questionText: q.questionText,
+            questionType: q.questionType,
+            marks: q.marks,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer || '',
+            aiGenerated: q.aiGenerated || false
+        }));
+        
         const newAssessment = new Assessment({
             title,
             description,
             duration,
             totalMarks,
-            questions,
+            questions: cleanedQuestions,
             course: course || 'General',
             teacher: req.user.id
         });
@@ -204,6 +233,7 @@ router.post('/', auth, async (req, res) => {
         const saved = await newAssessment.save();
         res.status(201).json(saved);
     } catch (err) {
+        console.error('Assessment creation error:', err);
         res.status(500).json({ message: err.message });
     }
 });
