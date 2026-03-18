@@ -9,6 +9,7 @@ const AdminPanel = () => {
     const [pendingUsers, setPendingUsers] = useState([]);
     const [pendingChanges, setPendingChanges] = useState([]);
     const [assessments, setAssessments] = useState([]);
+    const [assessmentRequests, setAssessmentRequests] = useState([]);
     const [courses, setCourses] = useState([
         { id: 1, name: 'Python', students: 0 },
         { id: 2, name: 'Data Structures', students: 0 },
@@ -77,6 +78,14 @@ const AdminPanel = () => {
             if (asmtData     !== null) setAssessments(asmtData);
 
             if (sRes.status === 'rejected') setError('Some data could not be loaded.');
+
+            // Also fetch assessment requests
+            try {
+                const rRes = await fetch('/api/admin/assessment-requests', { headers });
+                const rData = await rRes.json();
+                if (rRes.ok) setAssessmentRequests(rData);
+            } catch (e) {}
+
         } catch (err) {
             setError('Connection error. Is the backend server running?');
         } finally {
@@ -426,6 +435,10 @@ const AdminPanel = () => {
                         <FileQuestion size={20} />
                         <span>Assessments</span>
                     </button>
+                    <button onClick={() => { setActiveTab('requests'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'requests' ? 'active' : ''}`}>
+                        <AlertCircle size={20} />
+                        <span>Requests {assessmentRequests.filter(r => r.status === 'pending').length > 0 && <span className="nav-badge">{assessmentRequests.filter(r => r.status === 'pending').length}</span>}</span>
+                    </button>
                     <button onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}>
                         <Settings size={20} />
                         <span>Settings</span>
@@ -638,6 +651,50 @@ const AdminPanel = () => {
                                                 <button className="icon-btn delete" onClick={() => handleDeleteAssessmentByAdmin(a._id)} title="Delete Assessment">
                                                     <Trash2 size={16} />
                                                 </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                ) : activeTab === 'requests' ? (
+                    <div className="table-card">
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Student Assessment Requests ({assessmentRequests.length})</h3>
+                        </div>
+                        {assessmentRequests.length === 0 ? (
+                            <div className="empty-state"><AlertCircle size={48} /><p>No assessment requests yet.</p></div>
+                        ) : (
+                            <table className="students-table">
+                                <thead>
+                                    <tr><th>Student</th><th>Assessment</th><th>Type</th><th>Reason</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+                                </thead>
+                                <tbody>
+                                    {assessmentRequests.map(r => (
+                                        <tr key={r._id}>
+                                            <td><strong>{r.student?.name}</strong><br/><span style={{opacity:0.6,fontSize:'0.8rem'}}>{r.student?.email}</span></td>
+                                            <td>{r.assessment?.title}</td>
+                                            <td><span style={{ textTransform:'capitalize', color: r.type==='re-attempt'?'#a5b4fc':'#f59e0b', fontWeight:600 }}>{r.type}</span></td>
+                                            <td style={{ maxWidth:'180px', fontSize:'0.85rem', opacity:0.8 }}>{r.reason}</td>
+                                            <td><span className={`status-pill ${r.status === 'approved' ? 'active' : r.status === 'rejected' ? 'closed' : ''}`} style={{ padding:'4px 10px' }}>{r.status}</span></td>
+                                            <td style={{ opacity:0.6, fontSize:'0.85rem' }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                                            <td className="actions-cell">
+                                                {r.status === 'pending' && (
+                                                    <>
+                                                        <button className="icon-btn save" title="Approve" onClick={async () => {
+                                                            const res = await fetch(`/api/admin/assessment-requests/${r._id}/approve`, { method:'PUT', headers:{ 'Authorization':`Bearer ${token}` } });
+                                                            if (res.ok) { showMsg('success','Request approved'); fetchData(); }
+                                                            else showMsg('error','Failed to approve');
+                                                        }}><CheckCircle size={16} /></button>
+                                                        <button className="icon-btn delete" title="Reject" onClick={async () => {
+                                                            const res = await fetch(`/api/admin/assessment-requests/${r._id}/reject`, { method:'PUT', headers:{ 'Authorization':`Bearer ${token}` } });
+                                                            if (res.ok) { showMsg('success','Request rejected'); fetchData(); }
+                                                            else showMsg('error','Failed to reject');
+                                                        }}><XCircle size={16} /></button>
+                                                    </>
+                                                )}
+                                                {r.status !== 'pending' && <span style={{opacity:0.5,fontSize:'0.8rem'}}>Resolved</span>}
                                             </td>
                                         </tr>
                                     ))}

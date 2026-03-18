@@ -11,6 +11,8 @@ const StudentPortal = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('dashboard');
     const [assessments, setAssessments] = useState([]);
+    const [pastAssessments, setPastAssessments] = useState([]);
+    const [myRequests, setMyRequests] = useState([]);
     const [takingExam, setTakingExam] = useState(null);
     const [loadingAsmt, setLoadingAsmt] = useState(false);
     const [notifications, setNotifications] = useState([]);
@@ -22,6 +24,12 @@ const StudentPortal = () => {
     const [notes, setNotes] = useState([]);
     const [loadingNotes, setLoadingNotes] = useState(false);
     const [tabSwitches, setTabSwitches] = useState(0);
+    const [asmtSubTab, setAsmtSubTab] = useState('active');
+    const [viewSubmission, setViewSubmission] = useState(null);
+    const [requestModal, setRequestModal] = useState(null); // { assessment, type }
+    const [requestReason, setRequestReason] = useState('');
+    const [requestMsg, setRequestMsg] = useState('');
+    const [requestLoading, setRequestLoading] = useState(false);
     const navigate = useNavigate();
 
     const token = localStorage.getItem('token');
@@ -34,6 +42,8 @@ const StudentPortal = () => {
         }
         fetchFiles();
         fetchAssessments();
+        fetchPastAssessments();
+        fetchMyRequests();
         fetchNotifications();
         fetchNotes();
         // Apply stored theme
@@ -110,6 +120,59 @@ const StudentPortal = () => {
             console.error('Failed to load assessments');
         } finally {
             setLoadingAsmt(false);
+        }
+    };
+
+    const fetchPastAssessments = async () => {
+        try {
+            const res = await fetch('/api/student/my-assessments', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) setPastAssessments(data);
+        } catch (err) {
+            console.error('Failed to load past assessments');
+        }
+    };
+
+    const fetchMyRequests = async () => {
+        try {
+            const res = await fetch('/api/student/my-requests', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) setMyRequests(data);
+        } catch (err) {
+            console.error('Failed to load requests');
+        }
+    };
+
+    const handleSubmitRequest = async () => {
+        if (!requestReason.trim()) { setRequestMsg('Please enter a reason.'); return; }
+        setRequestLoading(true);
+        setRequestMsg('');
+        try {
+            const res = await fetch('/api/student/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    assessmentId: requestModal.assessment._id,
+                    type: requestModal.type,
+                    reason: requestReason
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setRequestMsg('✅ Request submitted! You will be notified when reviewed.');
+                setRequestReason('');
+                fetchMyRequests();
+            } else {
+                setRequestMsg('❌ ' + (data.message || 'Failed to submit'));
+            }
+        } catch (err) {
+            setRequestMsg('❌ Network error');
+        } finally {
+            setRequestLoading(false);
         }
     };
 
@@ -382,70 +445,201 @@ const StudentPortal = () => {
                         <div className="assessments-section">
                             <div className="section-header">
                                 <h1>Assessments</h1>
-                                <p>View and take exams assigned to you.</p>
+                                <p>Take exams, view past submissions, and submit requests.</p>
                             </div>
 
-                            {loadingAsmt ? (
-                                <div className="loading-state">Loading assessments...</div>
-                            ) : assessments.length === 0 ? (
-                                <div className="empty-state">
-                                    <FileQuestion size={48} />
-                                    <p>No active assessments at the moment.</p>
-                                </div>
-                            ) : (
-                                <div className="assessments-grid">
-                                    {assessments.map((asmt) => {
-                                        const submission = asmt.submissions?.find(s => s.student.toString() === user._id || s.student === user._id);
-                                        const isFinished = submission && submission.status !== 'started';
-                                        const showResults = asmt.status === 'results_published';
+                            {/* Sub-tabs */}
+                            <div style={{ display:'flex', gap:'8px', marginBottom:'20px', flexWrap:'wrap' }}>
+                                {['active','past','requests'].map(tab => (
+                                    <button key={tab} onClick={() => setAsmtSubTab(tab)}
+                                        style={{
+                                            padding:'8px 18px', borderRadius:'20px', border:'none', cursor:'pointer', fontWeight:600, fontSize:'0.9rem',
+                                            background: asmtSubTab === tab ? 'linear-gradient(135deg,#6366f1,#38bdf8)' : 'rgba(255,255,255,0.07)',
+                                            color: asmtSubTab === tab ? '#fff' : 'rgba(255,255,255,0.65)'
+                                        }}>
+                                        {tab === 'active' ? '📝 Active' : tab === 'past' ? '📂 Past Submissions' : '🔄 My Requests'}
+                                    </button>
+                                ))}
+                            </div>
 
-                                        return (
-                                            <div key={asmt._id} className={`assessment-card ${showResults ? 'published' : ''}`}>
-                                                <div className="asmt-header">
-                                                    <span className={`asmt-status ${isFinished ? 'closed' : 'active'}`}>
-                                                        {isFinished ? 'Submitted' : 'Active'}
-                                                    </span>
-                                                    {showResults && <span className="asmt-status active">Results Out</span>}
-                                                    <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
-                                                </div>
-                                                <h3>{asmt.title}</h3>
-                                                <p>{asmt.description || 'No description provided.'}</p>
-                                                <div className="asmt-stats">
-                                                    <div className="asmt-stat">
-                                                        <Clock size={16} />
-                                                        <span>{asmt.duration} Mins</span>
+                            {/* Active Exams */}
+                            {asmtSubTab === 'active' && (
+                                loadingAsmt ? <div className="loading-state">Loading assessments...</div>
+                                : assessments.length === 0 ? (
+                                    <div className="empty-state"><FileQuestion size={48} /><p>No active assessments at the moment.</p></div>
+                                ) : (
+                                    <div className="assessments-grid">
+                                        {assessments.map((asmt) => {
+                                            const submission = asmt.submissions?.find(s => s.student?.toString() === user._id || s.student === user._id);
+                                            const isFinished = submission && submission.status !== 'started';
+                                            const showResults = asmt.status === 'results_published';
+                                            return (
+                                                <div key={asmt._id} className={`assessment-card ${showResults ? 'published' : ''}`}>
+                                                    <div className="asmt-header">
+                                                        <span className={`asmt-status ${isFinished ? 'closed' : 'active'}`}>{isFinished ? 'Submitted' : 'Active'}</span>
+                                                        {showResults && <span className="asmt-status active">Results Out</span>}
+                                                        <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
                                                     </div>
-                                                    <div className="asmt-stat">
-                                                        <span>{asmt.totalMarks} Marks</span>
+                                                    <h3>{asmt.title}</h3>
+                                                    <p>{asmt.description || 'No description provided.'}</p>
+                                                    <div className="asmt-stats">
+                                                        <div className="asmt-stat"><Clock size={16} /><span>{asmt.duration} Mins</span></div>
+                                                        <div className="asmt-stat"><span>{asmt.totalMarks} Marks</span></div>
+                                                    </div>
+                                                    <div className="asmt-footer">
+                                                        {isFinished ? (
+                                                            <button className="btn-disabled" disabled><CheckCircle size={16} /> Submission Received</button>
+                                                        ) : (
+                                                            <button className="btn-start" onClick={() => handleStartExam(asmt._id)}><Play size={16} /> Start Exam</button>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="asmt-footer">
-                                                    {showResults ? (
-                                                        <button className="btn-view-results" onClick={() => navigate(`/assessment/results/${asmt._id}`)}>
-                                                            <GraduationCap size={16} /> View Scorecard
-                                                        </button>
-                                                    ) : isFinished ? (
-                                                        <button className="btn-disabled" disabled>
-                                                            <CheckCircle size={16} /> Submission Received
-                                                        </button>
-                                                    ) : (
-                                                        <button className="btn-start" onClick={() => handleStartExam(asmt._id)}>
-                                                            <Play size={16} /> Start Exam
-                                                        </button>
+                                            );
+                                        })}
+                                    </div>
+                                )
+                            )}
+
+                            {/* Past Submissions */}
+                            {asmtSubTab === 'past' && (
+                                pastAssessments.length === 0 ? (
+                                    <div className="empty-state"><FileQuestion size={48} /><p>No past assessments found.</p></div>
+                                ) : (
+                                    <div className="assessments-grid">
+                                        {pastAssessments.map((asmt) => {
+                                            const sub = asmt.mySubmission;
+                                            const totalObtained = sub?.answers?.reduce((a, x) => a + (x.marksObtained || 0), 0) ?? null;
+                                            const showResults = asmt.status === 'results_published';
+                                            return (
+                                                <div key={asmt._id} className="assessment-card" style={{ border: showResults ? '1px solid #6366f1' : undefined }}>
+                                                    <div className="asmt-header">
+                                                        <span className={`asmt-status ${sub ? 'closed' : 'active'}`}>{sub ? 'Submitted' : 'Not Attempted'}</span>
+                                                        {showResults && <span className="asmt-status active">Results Out</span>}
+                                                        <span className="asmt-date">{new Date(asmt.createdAt).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <h3>{asmt.title}</h3>
+                                                    <p style={{ opacity:0.6 }}>{asmt.course} • {asmt.totalMarks} marks • {asmt.duration} mins</p>
+                                                    {showResults && sub && totalObtained !== null && (
+                                                        <div style={{ margin:'8px 0', padding:'8px 12px', background:'rgba(99,102,241,0.15)', borderRadius:'8px', fontSize:'0.95rem' }}>
+                                                            Score: <strong>{totalObtained} / {asmt.totalMarks}</strong>
+                                                        </div>
+                                                    )}
+                                                    <div className="asmt-footer" style={{ gap:'8px', flexWrap:'wrap' }}>
+                                                        {sub && (
+                                                            <button className="btn-view-results" style={{ flexShrink:0 }} onClick={() => setViewSubmission({ asmt, sub })}>
+                                                                👁 View Details
+                                                            </button>
+                                                        )}
+                                                        {sub && (
+                                                            <button onClick={() => { setRequestModal({ assessment: asmt, type:'re-evaluation' }); setRequestMsg(''); setRequestReason(''); }}
+                                                                style={{ padding:'8px 14px', borderRadius:'8px', border:'1px solid rgba(245,158,11,0.5)', background:'rgba(245,158,11,0.1)', color:'#f59e0b', cursor:'pointer', fontSize:'0.85rem', fontWeight:600 }}>
+                                                                📋 Re-Evaluation
+                                                            </button>
+                                                        )}
+                                                        {sub && (
+                                                            <button onClick={() => { setRequestModal({ assessment: asmt, type:'re-attempt' }); setRequestMsg(''); setRequestReason(''); }}
+                                                                style={{ padding:'8px 14px', borderRadius:'8px', border:'1px solid rgba(99,102,241,0.5)', background:'rgba(99,102,241,0.1)', color:'#a5b4fc', cursor:'pointer', fontSize:'0.85rem', fontWeight:600 }}>
+                                                                🔄 Re-Attempt
+                                                            </button>
+                                                        )}
+                                                        {!sub && <span style={{ opacity:0.5, fontSize:'0.85rem' }}>Not submitted</span>}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )
+                            )}
+
+                            {/* My Requests */}
+                            {asmtSubTab === 'requests' && (
+                                myRequests.length === 0 ? (
+                                    <div className="empty-state"><FileQuestion size={48} /><p>No requests submitted yet.</p></div>
+                                ) : (
+                                    <div className="table-card">
+                                        <table className="students-table">
+                                            <thead><tr><th>Assessment</th><th>Type</th><th>Reason</th><th>Status</th><th>Admin Note</th><th>Date</th></tr></thead>
+                                            <tbody>
+                                                {myRequests.map(r => (
+                                                    <tr key={r._id}>
+                                                        <td style={{ fontWeight:600 }}>{r.assessment?.title || '—'}</td>
+                                                        <td><span style={{ textTransform:'capitalize', color: r.type==='re-attempt'?'#a5b4fc':'#f59e0b' }}>{r.type}</span></td>
+                                                        <td style={{ maxWidth:'200px', opacity:0.8 }}>{r.reason}</td>
+                                                        <td><span className={`status-pill ${r.status === 'approved' ? 'active' : r.status === 'rejected' ? 'closed' : ''}`} style={{ padding:'4px 10px' }}>{r.status}</span></td>
+                                                        <td style={{ opacity:0.7 }}>{r.adminNote || '—'}</td>
+                                                        <td style={{ opacity:0.6 }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )
+                            )}
+
+                            {/* Submission Detail Modal */}
+                            {viewSubmission && (
+                                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+                                    <div style={{ background:'var(--bg-card,#1e293b)', borderRadius:'16px', padding:'28px', maxWidth:'600px', width:'100%', maxHeight:'80vh', overflowY:'auto', border:'1px solid rgba(255,255,255,0.1)' }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'16px' }}>
+                                            <h2 style={{ margin:0 }}>📝 {viewSubmission.asmt.title}</h2>
+                                            <button onClick={() => setViewSubmission(null)} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', fontSize:'1.5rem' }}>✕</button>
+                                        </div>
+                                        <p style={{ opacity:0.6, marginBottom:'16px' }}>Submitted: {new Date(viewSubmission.sub.submittedAt).toLocaleString()} • Tab switches: {viewSubmission.sub.tabSwitches || 0}</p>
+                                        {viewSubmission.asmt.status === 'results_published' && (
+                                            <div style={{ padding:'12px 16px', background:'rgba(99,102,241,0.15)', borderRadius:'10px', marginBottom:'16px', fontSize:'1.1rem' }}>
+                                                Total Score: <strong>{viewSubmission.sub.answers?.reduce((a,x) => a+(x.marksObtained||0),0)} / {viewSubmission.asmt.totalMarks}</strong>
+                                            </div>
+                                        )}
+                                        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                                            {viewSubmission.sub.answers?.map((ans, i) => (
+                                                <div key={i} style={{ padding:'12px', background:'rgba(255,255,255,0.05)', borderRadius:'10px' }}>
+                                                    <p style={{ margin:'0 0 6px', fontWeight:600, opacity:0.9 }}>Q{i+1}: {viewSubmission.asmt.questions?.[i]?.questionText || '—'}</p>
+                                                    <p style={{ margin:'0 0 4px', color:'#38bdf8' }}>Your answer: {ans.answerText || '(no answer)'}</p>
+                                                    {viewSubmission.asmt.status === 'results_published' && (
+                                                        <p style={{ margin:0, color: ans.marksObtained > 0 ? '#4ade80' : '#f87171' }}>Marks: {ans.marksObtained ?? 0} / {viewSubmission.asmt.questions?.[i]?.marks || '?'}</p>
                                                     )}
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Request Modal */}
+                            {requestModal && (
+                                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+                                    <div style={{ background:'var(--bg-card,#1e293b)', borderRadius:'16px', padding:'28px', maxWidth:'480px', width:'100%', border:'1px solid rgba(255,255,255,0.1)' }}>
+                                        <h2 style={{ margin:'0 0 8px' }}>{requestModal.type === 're-attempt' ? '🔄 Request Re-Attempt' : '📋 Request Re-Evaluation'}</h2>
+                                        <p style={{ opacity:0.6, marginBottom:'16px' }}>Assessment: <strong>{requestModal.assessment.title}</strong></p>
+                                        <p style={{ opacity:0.7, fontSize:'0.9rem', marginBottom:'16px' }}>
+                                            {requestModal.type === 're-attempt'
+                                                ? 'Re-attempt allows you to retake the exam. Your existing submission will be removed if approved.'
+                                                : 'Re-evaluation requests the teacher to review grading of your existing submission.'}
+                                        </p>
+                                        <textarea
+                                            placeholder="Please provide a reason for your request..."
+                                            value={requestReason}
+                                            onChange={e => setRequestReason(e.target.value)}
+                                            rows={4}
+                                            style={{ width:'100%', padding:'12px', borderRadius:'10px', border:'1px solid rgba(255,255,255,0.15)', background:'rgba(255,255,255,0.07)', color:'#fff', fontSize:'0.95rem', resize:'vertical', boxSizing:'border-box' }}
+                                        />
+                                        {requestMsg && <p style={{ marginTop:'8px', color: requestMsg.startsWith('✅') ? '#4ade80' : '#f87171' }}>{requestMsg}</p>}
+                                        <div style={{ display:'flex', gap:'10px', marginTop:'16px' }}>
+                                            <button onClick={handleSubmitRequest} disabled={requestLoading}
+                                                style={{ flex:1, padding:'12px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#6366f1,#38bdf8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>
+                                                {requestLoading ? 'Submitting...' : 'Submit Request'}
+                                            </button>
+                                            <button onClick={() => setRequestModal(null)}
+                                                style={{ padding:'12px 16px', borderRadius:'10px', border:'1px solid rgba(255,255,255,0.2)', background:'transparent', color:'#fff', cursor:'pointer' }}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
                             {takingExam && (
-                                <TakeAssessment
-                                    assessment={takingExam}
-                                    onComplete={handleSubmitExam}
-                                    onCancel={() => setTakingExam(null)}
-                                />
+                                <TakeAssessment assessment={takingExam} onComplete={handleSubmitExam} onCancel={() => setTakingExam(null)} />
                             )}
                         </div>
                     ) : activeTab === 'notes' ? (
