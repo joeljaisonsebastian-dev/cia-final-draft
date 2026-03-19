@@ -196,8 +196,21 @@ router.get('/teacher', auth, async (req, res) => {
         
         const assessments = await Assessment.find(query)
             .populate('teacher', 'name')
+            .populate('submissions.student', 'name email')
             .sort({ createdAt: -1 });
-        res.json(assessments);
+
+        // Attach studentName to each submission for easy frontend access
+        const result = assessments.map(asmt => {
+            const obj = asmt.toObject();
+            obj.submissions = obj.submissions.map(sub => ({
+                ...sub,
+                studentName: sub.student?.name || 'Unknown Student',
+                studentEmail: sub.student?.email || ''
+            }));
+            return obj;
+        });
+
+        res.json(result);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -340,9 +353,26 @@ router.post('/submit/:id', auth, async (req, res) => {
 
         const student = await User.findById(req.user.id).select('name');
 
+        // Auto-grade MCQ answers; mark others as pending for teacher
+        const gradedAnswers = (answers || []).map((ans, i) => {
+            const question = assessment.questions[i];
+            if (!question) return { ...ans, marksObtained: 0, isGraded: false };
+            if (question.questionType === 'mcq') {
+                const correct = (question.correctAnswer || '').trim().toLowerCase();
+                const given = (ans.answerText || '').trim().toLowerCase();
+                return {
+                    questionId: question._id,
+                    answerText: ans.answerText,
+                    marksObtained: correct && given && correct === given ? question.marks : 0,
+                    isGraded: true
+                };
+            }
+            return { questionId: question._id, answerText: ans.answerText, marksObtained: 0, isGraded: false };
+        });
+
         assessment.submissions.push({
             student: req.user.id,
-            answers,
+            answers: gradedAnswers,
             submittedAt: Date.now(),
             tabSwitches,
             status: 'submitted'
@@ -389,6 +419,33 @@ router.get('/student/:id', auth, async (req, res) => {
             return res.status(404).json({ message: 'Assessment not available' });
         }
         res.json(assessment);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Grade a single answer in a submission (Teacher)
+router.put('/grade/:asmtId/:submissionId/:answerIndex', auth, async (req, res) => {
+    try {
+        const { marks } = req.body;
+        const { asmtId, submissionId, answerIndex } = req.params;
+
+        const assessment = await Assessment.findById(asmtId);
+        if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
+        if (assessment.teacher.toString() !== req.user.id)
+            return res.status(403).json({ message: 'Unauthorized' });
+
+        const sub = assessment.submissions.id(submissionId);
+        if (!sub) return res.status(404).json({ message: 'Submission not found' });
+
+        const idx = parseInt(answerIndex);
+        if (!sub.answers[idx]) return res.status(400).json({ message: 'Answer index out of range' });
+
+        sub.answers[idx].marksObtained = Number(marks);
+        sub.answers[idx].isGraded = true;
+        await assessment.save();
+
+        res.json({ message: 'Grade saved' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
