@@ -74,9 +74,16 @@ mongoose.connect(MONGO_URI)
             console.log('✅ Admin user seeded (username: admin, password: pass)');
         }
 
-        // Auto-generate CSV on startup
-        const { updateUsersCSV } = require('./routes/admin');
-        await updateUsersCSV();
+        // Auto-generate CSV on startup ONLY if we have users in DB
+        // This prevents wiping a populated CSV on a fresh deployment with an empty DB
+        const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
+        if (userCount > 0) {
+            const { updateUsersCSV } = require('./routes/admin');
+            await updateUsersCSV();
+            console.log('✅ CSV synced with database');
+        } else {
+            console.log('⚠️ Database is empty, skipping CSV sync to prevent overwriting local data. Run seed_users.js if needed.');
+        }
 
         app.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
