@@ -2,6 +2,7 @@ services:
   - type: web
     name: cia-portal
     runtime: node
+    rootDirectory: .
     buildCommand: npm install && npm run build
     startCommand: node server/server.js
     envVars:
@@ -13,3 +14,5 @@ services:
         generateValue: true
       - key: PORT
         value: 5000
+      - key: GEMINI_API_KEY
+        sync: false

@@ -1,5 +1,9 @@
 {
     "type": "commonjs",
+    "scripts": {
+        "build": "cd .. && npm install && npm run build",
+        "start": "node server.js"
+    },
     "dependencies": {
         "bcryptjs": "^3.0.3",
         "body-parser": "^2.2.2",
