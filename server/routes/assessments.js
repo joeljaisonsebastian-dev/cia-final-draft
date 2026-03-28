@@ -46,20 +46,104 @@ router.post('/generate-ai', auth, async (req, res) => {
             return res.json(mockQuestions);
         }
 
-        // Real AI generation logic would go here (e.g., calling Google Gemini API)
-        // For now, keeping mock but acknowledging the key is ready
-        const mockQuestions = Array.from({ length: count || 5 }).map((_, i) => ({
-            id: Date.now() + i,
-            questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
-            questionType: 'mcq',
-            marks: 1,
-            options: ['Option A', 'Option B', 'Option C', 'Option D'],
-            correctAnswer: 'Option A'
-        }));
+        // Real AI generation using Google Gemini API
+        const prompt = `Generate ${count || 5} multiple choice questions about ${topic || 'general knowledge'}. 
+
+Return ONLY a valid JSON array with this exact structure:
+[
+  {
+    "questionText": "What is the capital of France?",
+    "questionType": "mcq",
+    "marks": 1,
+    "options": ["Paris", "London", "Berlin", "Madrid"],
+    "correctAnswer": "Paris"
+  }
+]
+
+Requirements:
+- Each question must have exactly 4 options
+- One option must be the correct answer
+- Make questions educational and appropriate
+- Return ONLY the JSON array, no additional text or explanation`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 4096,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            console.error(`Gemini API error: ${response.status} ${response.statusText}`);
+            throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
         
-        res.json(mockQuestions);
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+            console.error('Invalid Gemini API response:', data);
+            throw new Error('Invalid response from Gemini API');
+        }
+
+        const generatedText = data.candidates[0].content.parts[0].text;
+        console.log('Gemini raw response:', generatedText);
+        
+        // Try to parse the JSON response
+        let questions;
+        try {
+            // Clean the response text to extract JSON
+            const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                questions = JSON.parse(jsonMatch[0]);
+            } else {
+                // Try parsing the entire response as JSON
+                questions = JSON.parse(generatedText.trim());
+            }
+            
+            // Validate the structure
+            if (!Array.isArray(questions)) {
+                throw new Error('Response is not an array');
+            }
+            
+            // Ensure each question has the required fields
+            questions = questions.map(q => ({
+                questionText: q.questionText || 'Question text missing',
+                questionType: q.questionType || 'mcq',
+                marks: q.marks || 1,
+                options: Array.isArray(q.options) ? q.options : ['A', 'B', 'C', 'D'],
+                correctAnswer: q.correctAnswer || q.options[0] || 'A',
+                aiGenerated: true
+            }));
+            
+        } catch (parseError) {
+            console.error('Failed to parse AI response:', parseError);
+            console.log('Raw response:', generatedText);
+            // Fallback to mock data
+            questions = Array.from({ length: count || 5 }).map((_, i) => ({
+                questionText: `AI Generated Question ${i + 1} about ${topic || 'General Topic'}?`,
+                questionType: 'mcq',
+                marks: 1,
+                options: ['Option A', 'Option B', 'Option C', 'Option D'],
+                correctAnswer: 'Option A',
+                aiGenerated: true
+            }));
+        }
+
+        res.json(questions);
     } catch (err) {
-        res.status(500).json({ message: 'AI Generation failed' });
+        console.error('AI Generation error:', err);
+        res.status(500).json({ message: 'AI Generation failed: ' + err.message });
     }
 });
 
@@ -112,8 +196,21 @@ router.get('/teacher', auth, async (req, res) => {
         
         const assessments = await Assessment.find(query)
             .populate('teacher', 'name')
+            .populate('submissions.student', 'name email')
             .sort({ createdAt: -1 });
-        res.json(assessments);
+
+        // Attach studentName to each submission for easy frontend access
+        const result = assessments.map(asmt => {
+            const obj = asmt.toObject();
+            obj.submissions = obj.submissions.map(sub => ({
+                ...sub,
+                studentName: sub.student?.name || 'Unknown Student',
+                studentEmail: sub.student?.email || ''
+            }));
+            return obj;
+        });
+
+        res.json(result);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -126,12 +223,22 @@ router.post('/', auth, async (req, res) => {
         
         const { title, description, duration, totalMarks, questions, course } = req.body;
         
+        // Clean questions - remove client-side IDs and ensure proper structure
+        const cleanedQuestions = questions.map(q => ({
+            questionText: q.questionText,
+            questionType: q.questionType,
+            marks: q.marks,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer || '',
+            aiGenerated: q.aiGenerated || false
+        }));
+        
         const newAssessment = new Assessment({
             title,
             description,
             duration,
             totalMarks,
-            questions,
+            questions: cleanedQuestions,
             course: course || 'General',
             teacher: req.user.id
         });
@@ -139,6 +246,7 @@ router.post('/', auth, async (req, res) => {
         const saved = await newAssessment.save();
         res.status(201).json(saved);
     } catch (err) {
+        console.error('Assessment creation error:', err);
         res.status(500).json({ message: err.message });
     }
 });
@@ -245,9 +353,26 @@ router.post('/submit/:id', auth, async (req, res) => {
 
         const student = await User.findById(req.user.id).select('name');
 
+        // Auto-grade MCQ answers; mark others as pending for teacher
+        const gradedAnswers = (answers || []).map((ans, i) => {
+            const question = assessment.questions[i];
+            if (!question) return { ...ans, marksObtained: 0, isGraded: false };
+            if (question.questionType === 'mcq') {
+                const correct = (question.correctAnswer || '').trim().toLowerCase();
+                const given = (ans.answerText || '').trim().toLowerCase();
+                return {
+                    questionId: question._id,
+                    answerText: ans.answerText,
+                    marksObtained: correct && given && correct === given ? question.marks : 0,
+                    isGraded: true
+                };
+            }
+            return { questionId: question._id, answerText: ans.answerText, marksObtained: 0, isGraded: false };
+        });
+
         assessment.submissions.push({
             student: req.user.id,
-            answers,
+            answers: gradedAnswers,
             submittedAt: Date.now(),
             tabSwitches,
             status: 'submitted'
@@ -299,12 +424,41 @@ router.get('/student/:id', auth, async (req, res) => {
     }
 });
 
-// Delete assessment (Teacher only)
+// Grade a single answer in a submission (Teacher)
+router.put('/grade/:asmtId/:submissionId/:answerIndex', auth, async (req, res) => {
+    try {
+        const { marks } = req.body;
+        const { asmtId, submissionId, answerIndex } = req.params;
+
+        const assessment = await Assessment.findById(asmtId);
+        if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
+        if (assessment.teacher.toString() !== req.user.id)
+            return res.status(403).json({ message: 'Unauthorized' });
+
+        const sub = assessment.submissions.id(submissionId);
+        if (!sub) return res.status(404).json({ message: 'Submission not found' });
+
+        const idx = parseInt(answerIndex);
+        if (!sub.answers[idx]) return res.status(400).json({ message: 'Answer index out of range' });
+
+        sub.answers[idx].marksObtained = Number(marks);
+        sub.answers[idx].isGraded = true;
+        await assessment.save();
+
+        res.json({ message: 'Grade saved' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Delete assessment (Teacher who owns it, or Admin)
 router.delete('/:id', auth, async (req, res) => {
     try {
         const assessment = await Assessment.findById(req.params.id);
         if (!assessment) return res.status(404).json({ message: 'Assessment not found' });
-        if (assessment.teacher.toString() !== req.user.id) return res.status(403).json({ message: 'Unauthorized' });
+        const isOwner = assessment.teacher.toString() === req.user.id;
+        const isAdmin = req.user.role === 'admin';
+        if (!isOwner && !isAdmin) return res.status(403).json({ message: 'Unauthorized' });
         await Assessment.findByIdAndDelete(req.params.id);
         res.json({ message: 'Assessment deleted successfully' });
     } catch (err) {

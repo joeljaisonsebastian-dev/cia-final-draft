@@ -27,6 +27,9 @@ const TeacherPortal = () => {
     const [loadingNotes, setLoadingNotes] = useState(false);
     const [noteForm, setNoteForm] = useState({ title: '', content: '', course: 'General' });
     const [proposeUser, setProposeUser] = useState({ name: '', email: '', password: '', role: 'student' });
+    const [viewResultsAsmt, setViewResultsAsmt] = useState(null);
+    const [gradingSubmission, setGradingSubmission] = useState(null);
+    const [gradeValues, setGradeValues] = useState({});
     const fileInputRef = useRef(null);
     const navigate = useNavigate();
 
@@ -324,6 +327,39 @@ const TeacherPortal = () => {
         }
     };
 
+    const handleViewResults = async (asmtId) => {
+        try {
+            const res = await fetch(`/api/assessments/teacher`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            const full = data.find(a => a._id === asmtId);
+            if (full) setViewResultsAsmt(full);
+        } catch (err) {
+            setError('Failed to load submission details');
+        }
+    };
+
+    const handleSaveGrade = async (asmtId, submissionId, answerIndex, marks) => {
+        try {
+            const res = await fetch(`/api/assessments/grade/${asmtId}/${submissionId}/${answerIndex}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ marks: Number(marks) })
+            });
+            if (res.ok) {
+                setSuccess('Grade saved!');
+                handleViewResults(asmtId);
+                fetchAssessments();
+            } else {
+                const d = await res.json();
+                setError(d.message || 'Failed to save grade');
+            }
+        } catch (err) {
+            setError('Failed to save grade');
+        }
+    };
+
     const handleRequestName = async (e) => {
         e.preventDefault();
         setSettingsMsg({ type: '', text: '' });
@@ -473,7 +509,15 @@ const TeacherPortal = () => {
                                         {notifications.length === 0 ? (
                                             <div className="notif-empty">No notifications yet</div>
                                         ) : notifications.map(n => (
-                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}>
+                                            <div key={n._id} className={`notif-item ${n.isRead ? 'read' : 'unread'}`}
+                                                style={{ cursor: 'pointer' }}
+                                                onClick={() => {
+                                                    setShowNotifPanel(false);
+                                                    if (n.type === 'submission' || n.type === 'tab-switch') { setActiveTab('assessments'); }
+                                                    else if (n.type === 'system') { setActiveTab('assessments'); }
+                                                    else { setActiveTab('dashboard'); }
+                                                }}
+                                            >
                                                 <span className="notif-icon">{getNotifIcon(n.type)}</span>
                                                 <div className="notif-body">
                                                     <p className="notif-title">{n.title}</p>
@@ -555,7 +599,7 @@ const TeacherPortal = () => {
                                                             Publish Results
                                                         </button>
                                                     )}
-                                                    <button className="btn-small btn-view">View Results</button>
+                                                    <button className="btn-small btn-view" onClick={() => handleViewResults(asmt._id)}>View Results</button>
                                                     <button
                                                         className="btn-small btn-delete-asmt"
                                                         onClick={() => handleDeleteAssessment(asmt._id)}
@@ -575,6 +619,81 @@ const TeacherPortal = () => {
                                     onSave={handleSaveAssessment}
                                     onCancel={() => setShowCreateModal(false)}
                                 />
+                            )}
+
+                            {/* Submissions Viewer Modal */}
+                            {viewResultsAsmt && (
+                                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:1000, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'30px 20px', overflowY:'auto' }}>
+                                    <div style={{ background:'var(--bg-card,#1e293b)', borderRadius:'16px', padding:'28px', maxWidth:'800px', width:'100%', border:'1px solid rgba(255,255,255,0.1)', marginBottom:'30px' }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px' }}>
+                                            <h2 style={{ margin:0 }}>📊 {viewResultsAsmt.title}</h2>
+                                            <button onClick={() => setViewResultsAsmt(null)} style={{ background:'none', border:'none', color:'#fff', cursor:'pointer', fontSize:'1.5rem' }}>✕</button>
+                                        </div>
+                                        <p style={{ opacity:0.6, marginBottom:'4px' }}>{viewResultsAsmt.questions?.length} questions • {viewResultsAsmt.totalMarks} marks • {viewResultsAsmt.duration} mins</p>
+                                        <div style={{ display:'flex', gap:'10px', marginBottom:'20px', flexWrap:'wrap', alignItems:'center' }}>
+                                            <span style={{ padding:'4px 12px', borderRadius:'20px', background:'rgba(99,102,241,0.2)', color:'#a5b4fc', fontSize:'0.85rem', fontWeight:600, textTransform:'capitalize' }}>
+                                                {viewResultsAsmt.status?.replace('_',' ')}
+                                            </span>
+                                            <span style={{ opacity:0.6, fontSize:'0.9rem' }}>{viewResultsAsmt.submissions?.length || 0} submission(s)</span>
+                                            {viewResultsAsmt.status === 'published' && (
+                                                <button onClick={async () => { await handlePublishResults(viewResultsAsmt._id); handleViewResults(viewResultsAsmt._id); }}
+                                                    style={{ marginLeft:'auto', padding:'8px 16px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', fontWeight:700, cursor:'pointer' }}>
+                                                    ✅ Publish Results to Students
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {!viewResultsAsmt.submissions || viewResultsAsmt.submissions.length === 0 ? (
+                                            <div style={{ textAlign:'center', padding:'40px', opacity:0.5 }}>No submissions yet.</div>
+                                        ) : viewResultsAsmt.submissions.map((sub, si) => {
+                                            const totalObtained = sub.answers?.reduce((a, x) => a + (x.marksObtained || 0), 0) ?? 0;
+                                            return (
+                                                <div key={sub._id || si} style={{ marginBottom:'24px', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', overflow:'hidden' }}>
+                                                    <div style={{ padding:'12px 16px', background:'rgba(255,255,255,0.05)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px' }}>
+                                                        <div>
+                                                            <strong style={{ fontSize:'1rem' }}>{sub.studentName || 'Student'}</strong>
+                                                            <span style={{ opacity:0.5, fontSize:'0.8rem', marginLeft:'10px' }}>Submitted: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '—'}</span>
+                                                            {sub.tabSwitches > 0 && <span style={{ marginLeft:'10px', color:'#f59e0b', fontSize:'0.8rem' }}>⚠️ {sub.tabSwitches} tab switch(es)</span>}
+                                                        </div>
+                                                        <span style={{ fontWeight:700, color:'#38bdf8' }}>Score: {totalObtained} / {viewResultsAsmt.totalMarks}</span>
+                                                    </div>
+                                                    <div style={{ padding:'12px 16px', display:'flex', flexDirection:'column', gap:'10px' }}>
+                                                        {sub.answers?.map((ans, ai) => {
+                                                            const q = viewResultsAsmt.questions?.[ai];
+                                                            const isAuto = q?.questionType === 'mcq';
+                                                            return (
+                                                                <div key={ai} style={{ padding:'10px 14px', background:'rgba(255,255,255,0.03)', borderRadius:'8px' }}>
+                                                                    <p style={{ margin:'0 0 4px', fontWeight:600, fontSize:'0.9rem', opacity:0.85 }}>Q{ai+1}: {q?.questionText || '—'} <span style={{ opacity:0.4, fontWeight:400 }}>({q?.marks} mk)</span></p>
+                                                                    <p style={{ margin:'0 0 6px', color:'#38bdf8', fontSize:'0.9rem' }}>Answer: {ans.answerText || <em style={{opacity:0.4}}>No answer</em>}</p>
+                                                                     {isAuto ? (
+                                                                        <span style={{ fontSize:'0.85rem', color: ans.marksObtained > 0 ? '#4ade80' : '#f87171' }}>Auto-graded: {ans.marksObtained ?? 0} / {q?.marks}</span>
+                                                                    ) : (
+                                                                        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+                                                                            <span style={{ fontSize:'0.85rem', opacity:0.6 }}>Marks:</span>
+                                                                            <input
+                                                                                type="number" min={0} max={q?.marks}
+                                                                                value={gradeValues[`${si}-${ai}`] ?? (ans.marksObtained ?? '')}
+                                                                                onChange={e => setGradeValues(prev => ({ ...prev, [`${si}-${ai}`]: e.target.value }))}
+                                                                                style={{ width:'70px', padding:'4px 8px', borderRadius:'6px', border:'1px solid rgba(255,255,255,0.3)', background:'rgba(255,255,255,0.08)', color:'#fff', fontSize:'0.9rem' }}
+                                                                            />
+                                                                            <span style={{ opacity:0.5, fontSize:'0.85rem' }}>/ {q?.marks}</span>
+                                                                            <button onClick={() => {
+                                                                                const val = gradeValues[`${si}-${ai}`];
+                                                                                if (val === undefined || val === '') { setError('Please enter a mark before saving.'); return; }
+                                                                                handleSaveGrade(viewResultsAsmt._id, sub._id, ai, val);
+                                                                            }} style={{ padding:'5px 12px', borderRadius:'6px', border:'none', background:'#6366f1', color:'#fff', cursor:'pointer', fontSize:'0.85rem', fontWeight:600 }}>Save</button>
+                                                                            {ans.isGraded && <span style={{ color:'#4ade80', fontSize:'0.8rem' }}>✓ Graded</span>}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             )}
                         </div>
                     ) : activeTab === 'notes' ? (

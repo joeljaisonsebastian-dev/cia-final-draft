@@ -576,5 +576,87 @@ router.put('/reject-change/:id/:field', protect, authorize('admin'), async (req,
     }
 });
 
+// ─── Assessment Requests ────────────────────────────────────────────────────
+
+const AssessmentRequest = require('../models/AssessmentRequest');
+const Assessment = require('../models/Assessment');
+
+// GET /api/admin/assessment-requests — List all student requests
+router.get('/assessment-requests', protect, authorize('admin'), async (req, res) => {
+    try {
+        const requests = await AssessmentRequest.find()
+            .populate('student', 'name email')
+            .populate('assessment', 'title course')
+            .sort({ createdAt: -1 });
+        res.json(requests);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// PUT /api/admin/assessment-requests/:id/approve — Approve a request
+router.put('/assessment-requests/:id/approve', protect, authorize('admin'), async (req, res) => {
+    try {
+        const request = await AssessmentRequest.findById(req.params.id)
+            .populate('student', 'name')
+            .populate('assessment', 'title');
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        request.status = 'approved';
+        request.adminNote = req.body.adminNote || 'Request approved by admin.';
+        request.resolvedAt = new Date();
+        await request.save();
+
+        // If re-attempt: remove student's existing submission so they can retake
+        if (request.type === 're-attempt') {
+            await Assessment.findByIdAndUpdate(request.assessment._id, {
+                $pull: { submissions: { student: request.student._id } }
+            });
+        }
+
+        // Notify the student
+        await Notification.create({
+            user: request.student._id,
+            title: request.type === 're-attempt' ? '✅ Re-Attempt Approved' : '✅ Re-Evaluation Approved',
+            message: `Your ${request.type} request for "${request.assessment.title}" has been approved. ${request.adminNote}`,
+            type: 'system'
+        });
+
+        res.json({ message: 'Request approved', request });
+    } catch (error) {
+        console.error('Approve request error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// PUT /api/admin/assessment-requests/:id/reject — Reject a request
+router.put('/assessment-requests/:id/reject', protect, authorize('admin'), async (req, res) => {
+    try {
+        const request = await AssessmentRequest.findById(req.params.id)
+            .populate('student', 'name')
+            .populate('assessment', 'title');
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        request.status = 'rejected';
+        request.adminNote = req.body.adminNote || 'Request was not approved.';
+        request.resolvedAt = new Date();
+        await request.save();
+
+        // Notify the student
+        await Notification.create({
+            user: request.student._id,
+            title: `❌ ${request.type === 're-attempt' ? 'Re-Attempt' : 'Re-Evaluation'} Rejected`,
+            message: `Your ${request.type} request for "${request.assessment.title}" was not approved. ${request.adminNote}`,
+            type: 'system'
+        });
+
+        res.json({ message: 'Request rejected', request });
+    } catch (error) {
+        console.error('Reject request error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 module.exports = router;
 module.exports.updateUsersCSV = updateUsersCSV;
+

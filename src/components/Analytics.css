@@ -70,17 +70,30 @@
 }
 
 .mock-dashboard {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    transform: perspective(1000px) rotateY(-5deg) rotateX(5deg);
-    transition: transform 0.5s ease;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    transform: perspective(1000px) rotateY(-8deg) rotateX(8deg);
+    transition: all 0.5s ease;
+    position: relative;
+}
+
+.mock-dashboard::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+    pointer-events: none;
 }
 
 .mock-dashboard:hover {
-    transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+    transform: perspective(1000px) rotateY(-2deg) rotateX(2deg);
+    box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
 }
 
 .dashboard-header {
@@ -103,23 +116,38 @@
     align-items: flex-end;
     justify-content: space-between;
     height: 200px;
-    gap: 1rem;
+    gap: 8px;
     margin-bottom: 2rem;
 }
 
 .bar {
     width: 100%;
-    background: linear-gradient(180deg, #a855f7 0%, #6366f1 100%);
-    border-radius: 4px 4px 0 0;
-    opacity: 0.8;
+    background: linear-gradient(180deg, #a855f7 0%, #6366f1 50%, #3b82f6 100%);
+    border-radius: 6px 6px 0 0;
+    opacity: 0.9;
     position: relative;
-    transition: height 1s ease;
-    animation: growUp 1s ease-out forwards;
+    transition: all 1s ease;
+    animation: growUp 1.2s ease-out forwards;
     transform-origin: bottom;
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);
+}
+
+.bar::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 4px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%);
+    border-radius: 2px;
 }
 
 .bar:hover {
     opacity: 1;
+    transform: scaleY(1.05);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
 }
 
 @keyframes growUp {
