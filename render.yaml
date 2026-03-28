@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: cia-portal
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: node server/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 5000

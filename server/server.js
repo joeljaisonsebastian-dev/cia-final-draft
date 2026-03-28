@@ -35,6 +35,15 @@ app.use('/api/teacher', require('./routes/teacher'));
 app.use('/api/student', require('./routes/student'));
 app.use('/api/user', require('./routes/user'));
 
+// Serve static files from the Vite build directory
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
+// Handle client-side routing - redirect all non-API requests to index.html
+app.get(/^(?!\/api).+/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
