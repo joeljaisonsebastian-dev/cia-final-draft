@@ -49,49 +49,70 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Connect to MongoDB and start server
+// Connect to MongoDB with retry logic
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/cia-portal';
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+    console.error('❌ FATAL: MONGO_URI environment variable is not set.');
+    console.error('   → Set it in your .env file (local) or in the Render dashboard (production).');
+    process.exit(1);
+}
 
 console.log('🔗 Connecting to MongoDB...');
-console.log('   URI:', MONGO_URI ? MONGO_URI.replace(/\/\/.*@/, '//<credentials>@') : 'UNDEFINED');
+console.log('   URI:', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'));
 
-mongoose.connect(MONGO_URI)
-    .then(async () => {
-        console.log('✅ Connected to MongoDB');
-
-        // Seed admin user if not exists
-        const adminExists = await User.findOne({ role: 'admin' });
-        if (!adminExists) {
-            await User.create({
-                name: 'Admin',
-                email: 'admin@cia-portal.com',
-                password: 'pass',
-                role: 'admin',
-                status: 'active',
-                plainPassword: 'pass'
+const connectWithRetry = async (retries = 5, delay = 5000) => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            await mongoose.connect(MONGO_URI, {
+                serverSelectionTimeoutMS: 10000,
+                socketTimeoutMS: 45000,
             });
-            console.log('✅ Admin user seeded (username: admin, password: pass)');
-        }
+            console.log('✅ Connected to MongoDB');
 
-        // Auto-generate CSV on startup ONLY if we have users in DB
-        // This prevents wiping a populated CSV on a fresh deployment with an empty DB
-        const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
-        if (userCount > 0) {
-            const { updateUsersCSV } = require('./routes/admin');
-            await updateUsersCSV();
-            console.log('✅ CSV synced with database');
-        } else {
-            console.log('⚠️ Database is empty, skipping CSV sync to prevent overwriting local data. Run seed_users.js if needed.');
-        }
+            // Seed admin user if not exists
+            const adminExists = await User.findOne({ role: 'admin' });
+            if (!adminExists) {
+                await User.create({
+                    name: 'Admin',
+                    email: 'admin@cia-portal.com',
+                    password: 'pass',
+                    role: 'admin',
+                    status: 'active',
+                    plainPassword: 'pass'
+                });
+                console.log('✅ Admin user seeded');
+            }
 
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on port ${PORT}`);
-        });
-    })
-    .catch((err) => {
-        console.error('❌ Server error:', err.stack || err);
-        process.exit(1);
-    });
+            // Auto-generate CSV on startup ONLY if we have users in DB
+            const userCount = await User.countDocuments({ role: { $ne: 'admin' } });
+            if (userCount > 0) {
+                const { updateUsersCSV } = require('./routes/admin');
+                await updateUsersCSV();
+                console.log('✅ CSV synced with database');
+            } else {
+                console.log('⚠️ Database empty — skipping CSV sync. Run seed_users.js if needed.');
+            }
+
+            app.listen(PORT, () => {
+                console.log(`🚀 Server running on port ${PORT}`);
+            });
+
+            return; // success — exit retry loop
+        } catch (err) {
+            console.error(`❌ MongoDB connection attempt ${attempt}/${retries} failed:`, err.message);
+            if (attempt < retries) {
+                console.log(`   ⏳ Retrying in ${delay / 1000}s...`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+            } else {
+                console.error('❌ All connection attempts failed. Exiting.');
+                process.exit(1);
+            }
+        }
+    }
+};
+
+connectWithRetry();
 
 module.exports = app;
