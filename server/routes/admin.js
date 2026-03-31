@@ -75,18 +75,33 @@ const updateUsersCSV = async () => {
 
 // Export will occur at the bottom
 
-// POST /api/admin/login — Admin login with hardcoded credentials
+// POST /api/admin/login — Admin login (supports multiple admins)
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
 
+        // Check for "root" admin first (legacy/fallback)
         if (username === 'admin' && password === 'pass') {
-            // Find admin user in DB
-            let adminUser = await User.findOne({ role: 'admin' });
-            if (!adminUser) {
-                return res.status(500).json({ message: 'Admin user not found in database' });
+            const rootAdmin = await User.findOne({ role: 'admin' });
+            if (rootAdmin) {
+                const token = jwt.sign({ id: rootAdmin._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+                return res.json({
+                    _id: rootAdmin._id,
+                    name: rootAdmin.name,
+                    email: rootAdmin.email,
+                    role: rootAdmin.role,
+                    token
+                });
             }
+        }
 
+        // Search for any admin in DB by username or email
+        const adminUser = await User.findOne({
+            $or: [{ username: username }, { email: username }],
+            role: 'admin'
+        });
+
+        if (adminUser && (await adminUser.matchPassword(password))) {
             const token = jwt.sign({ id: adminUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
             return res.json({
                 _id: adminUser._id,
@@ -653,6 +668,70 @@ router.put('/assessment-requests/:id/reject', protect, authorize('admin'), async
         res.json({ message: 'Request rejected', request });
     } catch (error) {
         console.error('Reject request error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// ─── Admin Management ───────────────────────────────────────────────────────
+
+// GET /api/admin/admins — List all admins
+router.get('/admins', protect, authorize('admin'), async (req, res) => {
+    try {
+        const admins = await User.find({ role: 'admin' }).select('-password');
+        res.json(admins);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// POST /api/admin/admins — Create a new admin
+router.post('/admins', protect, authorize('admin'), async (req, res) => {
+    try {
+        const { name, email, username, password } = req.body;
+
+        if (!name || !email || !username || !password) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        if (existingUser) {
+            return res.status(400).json({ message: 'Admin with this email or username already exists' });
+        }
+
+        const admin = new User({
+            name,
+            email,
+            username,
+            password,
+            role: 'admin',
+            status: 'active'
+        });
+
+        await admin.save();
+        res.status(201).json({ message: 'Admin created successfully', admin: { _id: admin._id, name, email, username } });
+    } catch (error) {
+        console.error('Create admin error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// DELETE /api/admin/admins/:id — Remove an admin
+router.delete('/admins/:id', protect, authorize('admin'), async (req, res) => {
+    try {
+        // Prevent deleting yourself
+        if (req.params.id === req.user._id.toString()) {
+            return res.status(400).json({ message: 'You cannot delete your own admin account' });
+        }
+
+        const admin = await User.findById(req.params.id);
+        if (!admin || admin.role !== 'admin') {
+            return res.status(404).json({ message: 'Admin not found' });
+        }
+
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Admin deleted successfully' });
+    } catch (error) {
+        console.error('Delete admin error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });

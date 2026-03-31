@@ -10,6 +10,7 @@ const AdminPanel = () => {
     const [pendingChanges, setPendingChanges] = useState([]);
     const [assessments, setAssessments] = useState([]);
     const [assessmentRequests, setAssessmentRequests] = useState([]);
+    const [admins, setAdmins] = useState([]);
     const [courses, setCourses] = useState([
         { id: 1, name: 'Python', students: 0 },
         { id: 2, name: 'Data Structures', students: 0 },
@@ -19,7 +20,7 @@ const AdminPanel = () => {
     ]);
     const [showAddForm, setShowAddForm] = useState(false);
     const [addRole, setAddRole] = useState('student');
-    const [newUser, setNewUser] = useState({ name: '', email: '' });
+    const [newUser, setNewUser] = useState({ name: '', email: '', username: '', password: '' });
     const [editingId, setEditingId] = useState(null);
     const [editData, setEditData] = useState({ name: '', email: '' });
     const [error, setError] = useState('');
@@ -62,7 +63,8 @@ const AdminPanel = () => {
                 fetch('/api/admin/teachers', { headers }),
                 fetch('/api/admin/pending',  { headers }),
                 fetch('/api/admin/pending-changes', { headers }),
-                fetch('/api/assessments/teacher', { headers })
+                fetch('/api/assessments/teacher', { headers }),
+                fetch('/api/admin/admins', { headers })
             ]);
 
             const studentsData = sRes.status === 'fulfilled' ? await safeJson(sRes.value) : [];
@@ -70,12 +72,14 @@ const AdminPanel = () => {
             const pendingData  = pRes.status === 'fulfilled' ? await safeJson(pRes.value) : [];
             const changesData  = cRes.status === 'fulfilled' ? await safeJson(cRes.value) : [];
             const asmtData     = aRes.status === 'fulfilled' ? await safeJson(aRes.value) : [];
+            const adminsData   = adminsRes.status === 'fulfilled' ? await safeJson(adminsRes.value) : [];
 
             if (studentsData !== null) setStudents(studentsData);
             if (teachersData !== null) setTeachers(teachersData);
             if (pendingData  !== null) setPendingUsers(pendingData);
             if (changesData  !== null) setPendingChanges(changesData);
             if (asmtData     !== null) setAssessments(asmtData);
+            if (adminsData   !== null) setAdmins(adminsData);
 
             if (sRes.status === 'rejected') setError('Some data could not be loaded.');
 
@@ -132,7 +136,11 @@ const AdminPanel = () => {
 
     const handleAddUser = async (e) => {
         e.preventDefault();
-        const endpoint = addRole === 'teacher' ? '/api/admin/teachers' : '/api/admin/students';
+        let endpoint = '';
+        if (addRole === 'teacher') endpoint = '/api/admin/teachers';
+        else if (addRole === 'admin') endpoint = '/api/admin/admins';
+        else endpoint = '/api/admin/students';
+
         try {
             const res = await fetch(endpoint, {
                 method: 'POST',
@@ -141,9 +149,29 @@ const AdminPanel = () => {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
-            showMsg('success', `${addRole.charAt(0).toUpperCase() + addRole.slice(1)} added! Generated password: ${data.generatedPassword}`);
-            setNewUser({ name: '', email: '' });
+
+            const msg = addRole === 'admin'
+                ? 'Admin created successfully!'
+                : `${addRole.charAt(0).toUpperCase() + addRole.slice(1)} added! Generated password: ${data.generatedPassword}`;
+
+            showMsg('success', msg);
+            setNewUser({ name: '', email: '', username: '', password: '' });
             setShowAddForm(false);
+            fetchData();
+        } catch (err) {
+            showMsg('error', err.message);
+        }
+    };
+
+    const handleDeleteAdmin = async (id) => {
+        if (!window.confirm('Remove this administrator?')) return;
+        try {
+            const res = await fetch(`/api/admin/admins/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) { const data = await res.json(); throw new Error(data.message); }
+            showMsg('success', 'Admin removed successfully');
             fetchData();
         } catch (err) {
             showMsg('error', err.message);
@@ -443,6 +471,10 @@ const AdminPanel = () => {
                         <Settings size={20} />
                         <span>Settings</span>
                     </button>
+                    <button onClick={() => { setActiveTab('admins'); setMobileMenuOpen(false); }} className={`nav-item ${activeTab === 'admins' ? 'active' : ''}`}>
+                        <Shield size={20} />
+                        <span>Administrators</span>
+                    </button>
                 </nav>
 
                 <div className="sidebar-footer">
@@ -477,8 +509,11 @@ const AdminPanel = () => {
                                 <button onClick={() => handleExportData('xlsx')}>As Excel</button>
                             </div>
                         </div>
-                        <button className="btn btn-primary desktop-only" onClick={() => { setShowAddForm(!showAddForm); setAddRole(activeTab === 'teachers' ? 'teacher' : 'student'); }}>
-                            <Users size={18} /> Add {activeTab === 'teachers' ? 'Teacher' : 'Student'}
+                        <button className="btn btn-primary desktop-only" onClick={() => { 
+                            setShowAddForm(!showAddForm); 
+                            setAddRole(activeTab === 'teachers' ? 'teacher' : activeTab === 'admins' ? 'admin' : 'student'); 
+                        }}>
+                            <Users size={18} /> Add {activeTab === 'teachers' ? 'Teacher' : activeTab === 'admins' ? 'Administrator' : 'Student'}
                         </button>
 
                         <button className="icon-btn bell-btn" style={{ position: 'relative', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -500,18 +535,25 @@ const AdminPanel = () => {
                     <div className="add-form-card">
                         <h3>Add New {addRole.charAt(0).toUpperCase() + addRole.slice(1)}</h3>
                         <form onSubmit={handleAddUser}>
-                            <div className="form-row">
+                            <div className="form-row" style={{ flexWrap: 'wrap', gap: '1rem' }}>
                                 <select value={addRole} onChange={e => setAddRole(e.target.value)} className="role-select">
                                     <option value="student">Student</option>
                                     <option value="teacher">Teacher</option>
+                                    <option value="admin">Administrator</option>
                                 </select>
                                 <input type="text" placeholder="Full name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} required />
                                 <input type="email" placeholder="Email address" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
+                                {addRole === 'admin' && (
+                                    <>
+                                        <input type="text" placeholder="Username" value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} required />
+                                        <input type="password" placeholder="Password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
+                                    </>
+                                )}
                                 <button type="submit" className="btn btn-primary">Add</button>
                                 <button type="button" className="btn btn-ghost" onClick={() => setShowAddForm(false)}>Cancel</button>
                             </div>
                         </form>
-                        <p className="form-hint">A password will be auto-generated and saved to the CSV.</p>
+                        <p className="form-hint">{addRole === 'admin' ? 'Fill in all details to create a new administrator.' : 'A password will be auto-generated and saved to the CSV.'}</p>
                     </div>
                 )}
 
@@ -702,6 +744,55 @@ const AdminPanel = () => {
                             </table>
                         )}
                     </div>
+                ) : activeTab === 'admins' ? (
+                    <div className="table-card">
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Administrator Accounts ({admins.length})</h3>
+                        </div>
+                        {loading ? (
+                            <div className="loading-state">Loading admins...</div>
+                        ) : admins.length === 0 ? (
+                            <div className="empty-state"><Shield size={48} /><p>No administrators found.</p></div>
+                        ) : (
+                            <table className="students-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>Username / Email</th>
+                                        <th>Date Added</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {admins.map((admin, idx) => (
+                                        <tr key={admin._id}>
+                                            <td>{idx + 1}</td>
+                                            <td><strong>{admin.name}</strong></td>
+                                            <td>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{admin.username || 'root'}</span>
+                                                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{admin.email}</span>
+                                                </div>
+                                            </td>
+                                            <td>{new Date(admin.createdAt).toLocaleDateString()}</td>
+                                            <td className="actions-cell">
+                                                <button 
+                                                    className="icon-btn delete" 
+                                                    onClick={() => handleDeleteAdmin(admin._id)} 
+                                                    title="Remove Admin"
+                                                    disabled={admin._id === JSON.parse(localStorage.getItem('adminUser') || '{}')._id}
+                                                    style={admin._id === JSON.parse(localStorage.getItem('adminUser') || '{}')._id ? { opacity: 0.3, cursor: 'not-allowed' } : {}}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
                 ) : activeTab === 'analytics' ? (
                     <div className="analytics-summary-cards">
                         <div className="sum-card-admin">
@@ -713,12 +804,12 @@ const AdminPanel = () => {
                             <div className="sum-label">Total Teachers</div>
                         </div>
                         <div className="sum-card-admin">
-                            <div className="sum-val">{pendingUsers.length}</div>
-                            <div className="sum-label">Pending Signups</div>
+                            <div className="sum-val">{admins.length}</div>
+                            <div className="sum-label">Total Admins</div>
                         </div>
                         <div className="sum-card-admin">
-                            <div className="sum-val">{pendingChanges.length}</div>
-                            <div className="sum-label">Pending Changes</div>
+                            <div className="sum-val">{pendingUsers.length}</div>
+                            <div className="sum-label">Pending Signups</div>
                         </div>
                         <div className="sum-card-admin">
                             <div className="sum-val">{assessments.length}</div>

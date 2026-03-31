@@ -1,7 +1,11 @@
+/* ============================================================
+   Features Section – Premium Glassmorphism Cards
+   ============================================================ */
 .features {
     padding: 6rem 2rem;
     max-width: 1200px;
     margin: 0 auto;
+    position: relative;
 }
 
 .features-header {
@@ -10,31 +14,37 @@
 }
 
 .features-header h2 {
-    font-size: 2.5rem;
-    font-weight: 700;
+    font-size: 2.75rem;
+    font-weight: 800;
     margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--text-main), var(--text-muted));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .features-header p {
     color: var(--text-muted);
-    font-size: 1.125rem;
-    max-width: 600px;
+    font-size: 1.15rem;
+    max-width: 550px;
     margin: 0 auto;
+    line-height: 1.6;
 }
 
 .features-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.5rem;
 }
 
 .feature-card {
     background: var(--bg-card);
     border: 1px solid var(--glass-border);
-    border-radius: 1rem;
-    padding: 2rem;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
+    border-radius: 1.25rem;
+    padding: 2.25rem;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(12px);
     position: relative;
     overflow: hidden;
 }
@@ -42,33 +52,67 @@
 .feature-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    background: linear-gradient(90deg, #6366f1, #a855f7);
+    top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899);
+    background-size: 200% 100%;
     transform: scaleX(0);
     transform-origin: left;
-    transition: transform 0.3s ease;
+    transition: transform 0.4s ease;
+}
+
+.feature-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        circle at top right,
+        rgba(99, 102, 241, 0.06),
+        transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.4s ease;
 }
 
 .feature-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-    border-color: rgba(99, 102, 241, 0.3);
+    transform: translateY(-6px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    border-color: rgba(99, 102, 241, 0.25);
+}
+
+[data-theme="light"] .feature-card:hover {
+    background: #fff;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
 }
 
 .feature-card:hover::before {
     transform: scaleX(1);
+    animation: gradient-slide 2s linear infinite;
+}
+
+.feature-card:hover::after { opacity: 1; }
+
+@keyframes gradient-slide {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
 }
 
 .feature-icon-wrapper {
     display: inline-flex;
-    padding: 1rem;
+    padding: 0.9rem;
     background: rgba(99, 102, 241, 0.1);
-    border-radius: 0.75rem;
+    border-radius: 0.85rem;
     margin-bottom: 1.5rem;
     color: #818cf8;
+    transition: all 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.feature-card:hover .feature-icon-wrapper {
+    background: rgba(99, 102, 241, 0.15);
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.2);
 }
 
 .feature-icon {
@@ -78,13 +122,22 @@
 
 .feature-card h3 {
     font-size: 1.25rem;
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 0.75rem;
     color: var(--text-main);
+    position: relative;
+    z-index: 1;
 }
 
 .feature-card p {
     color: var(--text-muted);
-    line-height: 1.6;
+    line-height: 1.65;
     font-size: 0.95rem;
+    position: relative;
+    z-index: 1;
+}
+
+[data-theme="light"] .feature-card {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 0, 0, 0.07);
 }

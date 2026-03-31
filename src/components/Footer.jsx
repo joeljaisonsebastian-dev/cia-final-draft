@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrainCircuit, Github, Twitter, Linkedin } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Github } from 'lucide-react';
 import './Footer.css';
 
 const Footer = () => {
@@ -8,6 +9,7 @@ const Footer = () => {
             <div className="footer-content">
                 <div className="footer-brand">
                     <div className="footer-logo">
+                        <img src="/logo.png" alt="Smart CIA Logo" className="footer-brand-img" />
                         <span>Smart CIA</span>
                     </div>
                     <p className="footer-description">
@@ -21,22 +23,13 @@ const Footer = () => {
                 <div className="footer-links-group">
                     <div className="link-column">
                         <h4>Platform</h4>
-                        <a href="src\pages\TeacherPortal.jsx">Teacher Portal</a>
-                        <a href="src\pages\StudentPortal.jsx">Student Portal</a>
-                        <a href="#">Features</a>
+                        <Link to="/login?role=teacher">Teacher Portal</Link>
+                        <Link to="/login?role=student">Student Portal</Link>
+                        <Link to="/login?role=admin">Admin Panel</Link>
                     </div>
                     <div className="link-column">
                         <h4>Resources</h4>
-                        <a href="#">Documentation</a>
-                        <a href="#">Help Center</a>
-                        <a href="#">API Reference</a>
-                        <a href="#">Blog</a>
-                    </div>
-                    <div className="link-column">
-                        <h4>Legal</h4>
-                        <a href="#">Privacy Policy</a>
-                        <a href="#">Terms of Service</a>
-                        <a href="#">Security</a>
+                        <a href="https://drive.google.com/drive/folders/1Dtj3d3FycbRmn7V6TYTHggsbxc5Dqurs?usp=sharing" target="_blank" rel="noopener noreferrer">Documentation</a>
                     </div>
                 </div>
             </div>

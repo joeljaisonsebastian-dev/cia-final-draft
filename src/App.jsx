@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
+import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Features from './components/Features';
 import Roles from './components/Roles';
@@ -8,7 +9,7 @@ import Footer from './components/Footer';
 import TeacherPortal from './pages/TeacherPortal';
 import StudentPortal from './pages/StudentPortal';
 import LoginPage from './pages/LoginPage';
-import AdminLogin from './pages/AdminLogin';
+
 import AdminPanel from './pages/AdminPanel';
 import './index.css';
 
@@ -16,6 +17,7 @@ import './index.css';
 const LandingPage = () => {
     return (
         <div className="layout">
+            <Navbar />
             <main>
                 <Hero />
                 <Features />
@@ -45,8 +47,7 @@ function App() {
                 <Route path="/teacher-portal" element={<TeacherPortal />} />
                 {/* Student Portal route */}
                 <Route path="/student-portal" element={<StudentPortal />} />
-                {/* Admin routes */}
-                <Route path="/admin-login" element={<AdminLogin />} />
+                {/* Admin Panel route */}
                 <Route path="/admin" element={<AdminPanel />} />
             </Routes>
         </Router>
